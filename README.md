@@ -1,4 +1,4 @@
-# atp-test
+# AT Proto Pub Sub
 Real-time AT Protocol WebSocket Subscription System
 
 A WebSocket-based subscription system that connects to the AT Protocol firehose and provides real-time filtered event streaming to multiple clients. Users can create custom filters and subscribe to specific types of AT Protocol events via WebSocket connections.
