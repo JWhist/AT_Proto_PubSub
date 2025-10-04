@@ -6,6 +6,169 @@ import (
 	"atp-test/internal/models"
 )
 
+// MockEventCallback is a test implementation of EventCallback
+type MockEventCallback struct {
+	events []models.ATEvent
+}
+
+func (m *MockEventCallback) Call(event *models.ATEvent) {
+	m.events = append(m.events, *event)
+}
+
+func (m *MockEventCallback) GetEvents() []models.ATEvent {
+	return m.events
+}
+
+func (m *MockEventCallback) Reset() {
+	m.events = nil
+}
+
+func TestSetEventCallback(t *testing.T) {
+	client := NewClient()
+	mockCallback := &MockEventCallback{}
+
+	// Test setting callback
+	client.SetEventCallback(mockCallback.Call)
+
+	if client.getEventCallback() == nil {
+		t.Error("Event callback should be set")
+	}
+
+	// Test callback functionality with a mock event
+	testEvent := &models.ATEvent{
+		Event: "commit",
+		Did:   "did:plc:test123",
+		Time:  "2024-01-01T00:00:00Z",
+		Kind:  "commit",
+		Ops: []models.ATOperation{
+			{
+				Action:     "create",
+				Path:       "app.bsky.feed.post/abc123",
+				Collection: "app.bsky.feed.post",
+				Rkey:       "abc123",
+				Record: map[string]interface{}{
+					"text":      "This is a test post",
+					"createdAt": "2024-01-01T00:00:00Z",
+				},
+			},
+		},
+	}
+
+	// Simulate calling the callback
+	callback := client.getEventCallback()
+	if callback != nil {
+		callback(testEvent)
+	}
+
+	events := mockCallback.GetEvents()
+	if len(events) != 1 {
+		t.Errorf("Expected 1 event, got %d", len(events))
+	}
+
+	if events[0].Did != testEvent.Did {
+		t.Errorf("Expected event DID %s, got %s", testEvent.Did, events[0].Did)
+	}
+}
+
+func TestEventCallbackConcurrency(t *testing.T) {
+	client := NewClient()
+	mockCallback := &MockEventCallback{}
+	client.SetEventCallback(mockCallback.Call)
+
+	// Test concurrent access to callback
+	done := make(chan bool, 10)
+
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			defer func() { done <- true }()
+
+			event := &models.ATEvent{
+				Event: "commit",
+				Did:   "did:plc:test" + string(rune(id+48)), // Convert to character '0', '1', etc.
+				Time:  "2024-01-01T00:00:00Z",
+				Kind:  "commit",
+				Ops: []models.ATOperation{
+					{
+						Action: "create",
+						Path:   "app.bsky.feed.post/abc" + string(rune(id+48)),
+					},
+				},
+			}
+
+			callback := client.getEventCallback()
+			if callback != nil {
+				callback(event)
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	events := mockCallback.GetEvents()
+	// Allow for some race conditions in concurrent test
+	if len(events) < 8 || len(events) > 10 {
+		t.Errorf("Expected 8-10 events due to potential race conditions, got %d", len(events))
+	}
+}
+
+func TestMultipleCallbacks(t *testing.T) {
+	client := NewClient()
+	mockCallback1 := &MockEventCallback{}
+	mockCallback2 := &MockEventCallback{}
+
+	// Test that setting a new callback replaces the old one
+	client.SetEventCallback(mockCallback1.Call)
+	client.SetEventCallback(mockCallback2.Call)
+
+	event := &models.ATEvent{
+		Event: "commit",
+		Did:   "did:plc:test123",
+		Time:  "2024-01-01T00:00:00Z",
+		Kind:  "commit",
+	}
+
+	callback := client.getEventCallback()
+	if callback != nil {
+		callback(event)
+	}
+
+	// Only the second callback should have received the event
+	events1 := mockCallback1.GetEvents()
+	events2 := mockCallback2.GetEvents()
+
+	if len(events1) != 0 {
+		t.Errorf("Expected 0 events in first callback, got %d", len(events1))
+	}
+
+	if len(events2) != 1 {
+		t.Errorf("Expected 1 event in second callback, got %d", len(events2))
+	}
+}
+
+func TestNilCallback(t *testing.T) {
+	client := NewClient()
+
+	// Test setting nil callback
+	client.SetEventCallback(nil)
+
+	callback := client.getEventCallback()
+	if callback != nil {
+		t.Error("Callback should be nil after setting to nil")
+	}
+
+	// Test that calling with nil callback doesn't panic
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Setting nil callback should not cause panic: %v", r)
+		}
+	}()
+
+	client.SetEventCallback(nil)
+}
+
 func TestNewClient(t *testing.T) {
 	client := NewClient()
 

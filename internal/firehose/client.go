@@ -1,7 +1,6 @@
 package firehose
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,18 +12,18 @@ import (
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/events"
 	"github.com/bluesky-social/indigo/events/schedulers/sequential"
-	"github.com/bluesky-social/indigo/repo"
 	"github.com/gorilla/websocket"
-	"github.com/ipfs/go-cid"
 
 	"atp-test/internal/models"
 )
 
 // Client handles the AT Protocol firehose connection and filtering
 type Client struct {
-	filters models.FilterOptions
-	mutex   sync.RWMutex
-	conn    *websocket.Conn
+	filters       models.FilterOptions
+	mutex         sync.RWMutex
+	conn          *websocket.Conn
+	eventCallback func(*models.ATEvent)
+	callbackMu    sync.RWMutex
 }
 
 // NewClient creates a new firehose client instance
@@ -46,6 +45,20 @@ func (c *Client) GetFilters() models.FilterOptions {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return c.filters
+}
+
+// SetEventCallback sets a callback function to be called for each received event
+func (c *Client) SetEventCallback(callback func(*models.ATEvent)) {
+	c.callbackMu.Lock()
+	defer c.callbackMu.Unlock()
+	c.eventCallback = callback
+}
+
+// getEventCallback safely gets the current event callback
+func (c *Client) getEventCallback() func(*models.ATEvent) {
+	c.callbackMu.RLock()
+	defer c.callbackMu.RUnlock()
+	return c.eventCallback
 }
 
 // Start begins the firehose connection and event processing
@@ -100,13 +113,7 @@ func (c *Client) handleRepoCommit(evt *atproto.SyncSubscribeRepos_Commit) error 
 		Kind: "commit",
 	}
 
-	// Parse CAR blocks to extract records
-	carReader, err := repo.ReadRepoFromCar(context.Background(), bytes.NewReader(evt.Blocks))
-	if err != nil {
-		fmt.Printf("⚠️  Failed to parse CAR blocks: %v\n", err)
-	}
-
-	// Convert operations and log details
+	// Convert operations
 	for _, op := range evt.Ops {
 		atOp := models.ATOperation{
 			Action: op.Action,
@@ -116,85 +123,16 @@ func (c *Client) handleRepoCommit(evt *atproto.SyncSubscribeRepos_Commit) error 
 			atOp.Cid = op.Cid.String()
 		}
 		atEvent.Ops = append(atEvent.Ops, atOp)
-
-		// Log each operation with details
-		fmt.Printf("📝 Operation: action=%s, path=%s", op.Action, op.Path)
-		if op.Cid != nil {
-			fmt.Printf(", cid=%s", op.Cid.String()[:12]+"...")
-		}
-		fmt.Printf(" (repo: %s)\n", evt.Repo[8:20]+"...") // Show first part of DID
-
-		// Extract and log record data for create/update operations only if filters are set
-		if (op.Action == "create" || op.Action == "update") && op.Cid != nil && carReader != nil {
-			currentFilters := c.GetFilters()
-			// Only log record details if we have active filters
-			if currentFilters.Repository != "" || currentFilters.PathPrefix != "" || currentFilters.Keyword != "" {
-				c.logRecord(carReader, op.Cid.String(), op.Path)
-			}
-		}
 	}
 
-	// Process the event with filtering
+	// Send event to callback (subscription manager) if set
+	if callback := c.getEventCallback(); callback != nil {
+		callback(&atEvent)
+	}
+
+	// Process the event with legacy filtering (for backward compatibility)
 	c.handleEvent(atEvent)
 	return nil
-}
-
-// logRecord extracts and logs record data from CAR blocks
-func (c *Client) logRecord(carReader *repo.Repo, cidStr string, path string) {
-	// Parse the CID
-	parsedCid, err := cid.Parse(cidStr)
-	if err != nil {
-		fmt.Printf("    ⚠️  Failed to parse CID %s: %v\n", cidStr, err)
-		return
-	}
-
-	// Get the record from the CAR reader
-	recordBytes, err := carReader.Blockstore().Get(context.Background(), parsedCid)
-	if err != nil {
-		fmt.Printf("    ⚠️  Failed to get record for CID %s: %v\n", cidStr, err)
-		return
-	}
-
-	// Try to parse as JSON to display record content
-	var record map[string]interface{}
-	if err := json.Unmarshal(recordBytes.RawData(), &record); err != nil {
-		fmt.Printf("    📄 Record (raw): %s\n", string(recordBytes.RawData()[:min(200, len(recordBytes.RawData()))]))
-		return
-	}
-
-	// Extract and display key fields from the record
-	fmt.Printf("    📄 Record data:\n")
-	if text, ok := record["text"].(string); ok && text != "" {
-		fmt.Printf("       Text: %s\n", text)
-	}
-	if createdAt, ok := record["createdAt"].(string); ok && createdAt != "" {
-		fmt.Printf("       Created: %s\n", createdAt)
-	}
-	if recordType, ok := record["$type"].(string); ok && recordType != "" {
-		fmt.Printf("       Type: %s\n", recordType)
-	}
-
-	// Show other interesting fields
-	for key, value := range record {
-		if key != "text" && key != "createdAt" && key != "$type" && key != "langs" {
-			if str, ok := value.(string); ok && len(str) < 100 {
-				fmt.Printf("       %s: %s\n", key, str)
-			} else if value != nil {
-				valueJSON, _ := json.Marshal(value)
-				if len(valueJSON) < 150 {
-					fmt.Printf("       %s: %s\n", key, string(valueJSON))
-				}
-			}
-		}
-	}
-}
-
-// Helper function for min
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // handleEvent processes an AT Protocol event

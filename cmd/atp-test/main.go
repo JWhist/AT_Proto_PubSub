@@ -15,11 +15,17 @@ import (
 )
 
 func main() {
-	fmt.Println("AT Protocol Firehose Filter Server with API")
-	fmt.Println("Use the API endpoints to set filters:")
+	fmt.Println("AT Protocol Firehose Filter Server with WebSocket Subscriptions")
+	fmt.Println("Use the API endpoints to create filter subscriptions:")
 	fmt.Println("  GET  http://localhost:8080/api/status")
-	fmt.Println("  GET  http://localhost:8080/api/filters")
-	fmt.Println("  POST http://localhost:8080/api/filters/update")
+	fmt.Println("  GET  http://localhost:8080/api/subscriptions")
+	fmt.Println("  POST http://localhost:8080/api/filters/create")
+	fmt.Println("  GET  http://localhost:8080/api/subscriptions/{filterKey}")
+	fmt.Println("  DELETE http://localhost:8080/api/filters/delete/{filterKey}")
+	fmt.Println("  GET  http://localhost:8080/api/stats")
+	fmt.Println("")
+	fmt.Println("WebSocket connection:")
+	fmt.Println("  ws://localhost:8080/ws/{filterKey}")
 	fmt.Println()
 
 	// Create firehose client instance (starts with no filters)
@@ -27,6 +33,9 @@ func main() {
 
 	// Create API server
 	apiServer := api.NewServer(firehoseClient, "8080")
+
+	// Connect firehose events to subscription manager
+	firehoseClient.SetEventCallback(apiServer.GetSubscriptionManager().BroadcastEvent)
 
 	// Set up context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // FilterOptions represents the filter options that can be set via API
 type FilterOptions struct {
 	Repository string `json:"repository"`
@@ -49,4 +51,33 @@ type RecordContent struct {
 	Langs   []string               `json:"langs,omitempty"`
 	Type    string                 `json:"$type"`
 	Created string                 `json:"createdAt"`
+}
+
+// WebSocket subscription models
+
+// FilterSubscription represents a filter subscription with connection info
+type FilterSubscription struct {
+	FilterKey   string        `json:"filterKey"`
+	Options     FilterOptions `json:"options"`
+	CreatedAt   time.Time     `json:"createdAt"`
+	Connections int           `json:"connections"`
+}
+
+// CreateFilterRequest represents the request body for creating a new filter subscription
+type CreateFilterRequest struct {
+	Options FilterOptions `json:"options"`
+}
+
+// CreateFilterResponse represents the response when creating a filter subscription
+type CreateFilterResponse struct {
+	FilterKey string        `json:"filterKey"`
+	Options   FilterOptions `json:"options"`
+	CreatedAt time.Time     `json:"createdAt"`
+}
+
+// WSMessage represents a WebSocket message sent to clients
+type WSMessage struct {
+	Type      string      `json:"type"`
+	Timestamp time.Time   `json:"timestamp"`
+	Data      interface{} `json:"data"`
 }
