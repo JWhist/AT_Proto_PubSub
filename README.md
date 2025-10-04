@@ -80,4 +80,36 @@ Each matching event is displayed with:
 - Text content (if available)
 - Other relevant metadata
 
+### Example Output
+
+```
+Starting AT Protocol Firehose Filter Server...
+Filters:
+  Repository: ALL
+  Keyword: test
+Connecting to firehose...
+
+================================================================================
+[2024-10-04T21:15:32.123Z] CREATE event
+--------------------------------------------------------------------------------
+Repository: did:plc:abc123xyz456
+Collection: app.bsky.feed.post
+Record Key: 3l4k5j6h7g8f
+URI: at://did:plc:abc123xyz456/app.bsky.feed.post/3l4k5j6h7g8f
+Text: This is a test post to see if the filter is working correctly!
+Languages: ["en"]
+================================================================================
+
+================================================================================
+[2024-10-04T21:15:35.456Z] UPDATE event
+--------------------------------------------------------------------------------
+Repository: did:plc:def789ghi012
+Collection: app.bsky.feed.post
+Record Key: 9m8n7b6v5c4x
+URI: at://did:plc:def789ghi012/app.bsky.feed.post/9m8n7b6v5c4x
+Text: Testing the new firehose filter functionality
+Reply to: {"parent":{"uri":"at://did:plc:other123/app.bsky.feed.post/abc"}}
+================================================================================
+```
+
 Press `Ctrl+C` to stop the server.
