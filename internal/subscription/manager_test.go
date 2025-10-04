@@ -10,6 +10,7 @@ func TestNewManager(t *testing.T) {
 	manager := NewManager()
 	if manager == nil {
 		t.Error("NewManager should not return nil")
+		return
 	}
 
 	if manager.subscriptions == nil {

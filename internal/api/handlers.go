@@ -334,8 +334,12 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			Timestamp: time.Now(),
 			Data:      map[string]string{"error": "Invalid filter key", "filterKey": path},
 		}
-		conn.WriteJSON(errorMsg)
-		conn.Close()
+		if err := conn.WriteJSON(errorMsg); err != nil {
+			log.Printf("Failed to write error message: %v", err)
+		}
+		if err := conn.Close(); err != nil {
+			log.Printf("Failed to close connection: %v", err)
+		}
 		return
 	}
 
@@ -358,7 +362,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Handle connection lifecycle
 	defer func() {
 		s.subscriptions.RemoveConnection(path, conn)
-		conn.Close()
+		if err := conn.Close(); err != nil {
+			log.Printf("Error closing connection: %v", err)
+		}
 		log.Printf("🔌 WebSocket disconnected for filter %s", path[:8]+"...")
 	}()
 

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -155,8 +156,12 @@ func (m *Manager) DeleteFilter(filterKey string) bool {
 			Timestamp: time.Now(),
 			Data:      map[string]string{"reason": "Filter subscription deleted"},
 		}
-		conn.WriteJSON(closeMsg)
-		conn.Close()
+		if err := conn.WriteJSON(closeMsg); err != nil {
+			log.Printf("Failed to send close message: %v", err)
+		}
+		if err := conn.Close(); err != nil {
+			log.Printf("Failed to close connection: %v", err)
+		}
 	}
 	sub.mu.Unlock()
 
@@ -296,7 +301,9 @@ func (m *Manager) broadcastToSubscription(sub *Subscription, event *models.ATEve
 		sub.mu.Lock()
 		for _, conn := range deadConnections {
 			delete(sub.Connections, conn)
-			conn.Close()
+			if err := conn.Close(); err != nil {
+				log.Printf("Failed to close dead connection: %v", err)
+			}
 		}
 		sub.mu.Unlock()
 		log.Printf("🧹 Cleaned up %d dead connections from filter %s", len(deadConnections), sub.FilterKey[:8]+"...")
@@ -328,7 +335,11 @@ func (m *Manager) GetStats() map[string]interface{} {
 // generateFilterKey creates a unique filter key
 func generateFilterKey() string {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		log.Printf("Failed to generate random bytes: %v", err)
+		// Fallback to time-based key if random fails
+		return hex.EncodeToString([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
+	}
 	return hex.EncodeToString(bytes)
 }
 
