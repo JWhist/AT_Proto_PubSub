@@ -41,7 +41,6 @@ func NewServer(firehoseClient *firehose.Client, port string) *Server {
 	mux.HandleFunc("/api/filters", apiServer.handleFilters)
 	mux.HandleFunc("/api/filters/update", apiServer.handleUpdateFilters)
 	mux.HandleFunc("/api/filters/create", apiServer.handleCreateFilter)
-	mux.HandleFunc("/api/filters/delete/", apiServer.handleDeleteFilter)
 	mux.HandleFunc("/api/subscriptions", apiServer.handleGetSubscriptions)
 	mux.HandleFunc("/api/subscriptions/", apiServer.handleGetSubscription)
 	mux.HandleFunc("/api/stats", apiServer.handleStats)

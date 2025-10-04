@@ -21,7 +21,6 @@ func main() {
 	fmt.Println("  GET  http://localhost:8080/api/subscriptions")
 	fmt.Println("  POST http://localhost:8080/api/filters/create")
 	fmt.Println("  GET  http://localhost:8080/api/subscriptions/{filterKey}")
-	fmt.Println("  DELETE http://localhost:8080/api/filters/delete/{filterKey}")
 	fmt.Println("  GET  http://localhost:8080/api/stats")
 	fmt.Println("")
 	fmt.Println("WebSocket connection:")

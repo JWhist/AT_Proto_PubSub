@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gorilla/websocket"
@@ -87,53 +86,6 @@ func TestHandleCreateFilter(t *testing.T) {
 				if len(response.FilterKey) != 32 {
 					t.Errorf("Expected filter key length 32, got %d", len(response.FilterKey))
 				}
-			}
-		})
-	}
-}
-
-func TestHandleDeleteFilter(t *testing.T) {
-	subscriptionManager := subscription.NewManager()
-	server := &Server{
-		subscriptions: subscriptionManager,
-	}
-
-	// Create a filter first
-	options := models.FilterOptions{Repository: "did:plc:test123"}
-	filterKey := subscriptionManager.CreateFilter(options)
-
-	tests := []struct {
-		name           string
-		filterKey      string
-		expectedStatus int
-	}{
-		{
-			name:           "Delete existing filter",
-			filterKey:      filterKey,
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "Delete non-existent filter",
-			filterKey:      "nonexistent",
-			expectedStatus: http.StatusNotFound,
-		},
-		{
-			name:           "Empty filter key",
-			filterKey:      "",
-			expectedStatus: http.StatusBadRequest,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			url := "/api/filters/delete/" + tt.filterKey
-			req := httptest.NewRequest(http.MethodDelete, url, nil)
-
-			rr := httptest.NewRecorder()
-			server.handleDeleteFilter(rr, req)
-
-			if rr.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, rr.Code)
 			}
 		})
 	}
@@ -275,13 +227,6 @@ func TestFilterRouting(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			description:    "Should create a new filter",
 		},
-		{
-			name:           "DELETE /api/filters/delete/key routes to delete filter",
-			method:         "DELETE",
-			path:           "/api/filters/delete/somekey",
-			expectedStatus: http.StatusNotFound,
-			description:    "Should attempt to delete filter (404 for non-existent)",
-		},
 	}
 
 	for _, tt := range tests {
@@ -307,8 +252,6 @@ func TestFilterRouting(t *testing.T) {
 				server.handleGetSubscriptions(rr, req)
 			case tt.method == "POST" && tt.path == "/api/filters/create":
 				server.handleCreateFilter(rr, req)
-			case tt.method == "DELETE" && strings.HasPrefix(tt.path, "/api/filters/delete/"):
-				server.handleDeleteFilter(rr, req)
 			default:
 				rr.WriteHeader(http.StatusNotFound)
 			}

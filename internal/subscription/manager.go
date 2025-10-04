@@ -138,38 +138,6 @@ func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
 	log.Printf("🔌 Removed connection from filter %s (remaining connections: %d)", filterKey[:8]+"...", connectionCount)
 }
 
-// DeleteFilter removes a filter subscription completely
-func (m *Manager) DeleteFilter(filterKey string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	sub, exists := m.subscriptions[filterKey]
-	if !exists {
-		return false
-	}
-
-	// Close all connections
-	sub.mu.Lock()
-	for conn := range sub.Connections {
-		closeMsg := models.WSMessage{
-			Type:      "filter_deleted",
-			Timestamp: time.Now(),
-			Data:      map[string]string{"reason": "Filter subscription deleted"},
-		}
-		if err := conn.WriteJSON(closeMsg); err != nil {
-			log.Printf("Failed to send close message: %v", err)
-		}
-		if err := conn.Close(); err != nil {
-			log.Printf("Failed to close connection: %v", err)
-		}
-	}
-	sub.mu.Unlock()
-
-	delete(m.subscriptions, filterKey)
-	log.Printf("🗑️  Deleted filter %s", filterKey[:8]+"...")
-	return true
-}
-
 // BroadcastEvent sends an event to all matching filter subscriptions
 func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 	m.mu.RLock()

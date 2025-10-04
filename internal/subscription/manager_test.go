@@ -89,37 +89,6 @@ func TestGetSubscriptions(t *testing.T) {
 	}
 }
 
-func TestDeleteFilter(t *testing.T) {
-	manager := NewManager()
-
-	options := models.FilterOptions{Repository: "did:plc:test123"}
-	filterKey := manager.CreateFilter(options)
-
-	// Verify it exists
-	_, exists := manager.GetSubscription(filterKey)
-	if !exists {
-		t.Error("Filter should exist before deletion")
-	}
-
-	// Delete it
-	success := manager.DeleteFilter(filterKey)
-	if !success {
-		t.Error("DeleteFilter should return true for existing filter")
-	}
-
-	// Verify it's gone
-	_, exists = manager.GetSubscription(filterKey)
-	if exists {
-		t.Error("Filter should not exist after deletion")
-	}
-
-	// Try to delete non-existent filter
-	success = manager.DeleteFilter("nonexistent")
-	if success {
-		t.Error("DeleteFilter should return false for non-existent filter")
-	}
-}
-
 func TestMatchesFilter(t *testing.T) {
 	manager := NewManager()
 

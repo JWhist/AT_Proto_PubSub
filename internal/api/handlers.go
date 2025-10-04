@@ -191,44 +191,6 @@ func (s *Server) handleCreateFilter(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleDeleteFilter deletes a filter subscription
-func (s *Server) handleDeleteFilter(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Extract filter key from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/api/filters/delete/")
-	if path == "" {
-		http.Error(w, "Filter key required", http.StatusBadRequest)
-		return
-	}
-
-	success := s.subscriptions.DeleteFilter(path)
-
-	var response models.APIResponse
-	if success {
-		response = models.APIResponse{
-			Success: true,
-			Message: "Filter deleted successfully",
-			Data:    map[string]string{"filterKey": path},
-		}
-	} else {
-		response = models.APIResponse{
-			Success: false,
-			Message: "Filter not found",
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
-}
-
 // handleGetSubscriptions returns all filter subscriptions
 func (s *Server) handleGetSubscriptions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
