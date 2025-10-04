@@ -17,6 +17,8 @@ npm run build
 
 ## Usage
 
+**Note:** This server requires internet connectivity to connect to the AT Protocol firehose at `wss://bsky.network`.
+
 ### Basic usage (show all events with text):
 ```bash
 npm start
@@ -55,6 +57,16 @@ The server connects to the AT Protocol firehose at `wss://bsky.network` and:
 2. Filters events based on the provided repository DID (if specified)
 3. Further filters events that contain the specified keyword in their text content (if specified)
 4. Logs matching events to the console with detailed information
+
+### Example Filter Logic
+
+You can test the filtering logic locally without connecting to the firehose:
+
+```bash
+node example-filter.js
+```
+
+This will demonstrate how events are filtered based on repository and keyword criteria.
 
 ## Output Format
 

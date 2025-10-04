@@ -45,7 +45,11 @@ class FirehoseFilterServer {
   }
 
   private handleError(err: Error): void {
+    // Log error but continue running - connection will auto-retry
     console.error('Firehose error:', err.message);
+    if (err.message.includes('getaddrinfo') || err.message.includes('ENOTFOUND')) {
+      console.error('Network connectivity issue - check your internet connection');
+    }
   }
 
   private matchesFilter(evt: CommitEvt): boolean {
