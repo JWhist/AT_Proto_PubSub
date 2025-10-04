@@ -3,16 +3,30 @@ Testing firehose read and filter of events
 
 A server that reads the AT Protocol firehose and filters events based on repository and keyword criteria.
 
+## Prerequisites
+
+- Go 1.19 or later
+- Internet connectivity to connect to the AT Protocol firehose
+
 ## Installation
 
 ```bash
-npm install
+# Clone the repository (if needed)
+git clone <repository-url>
+cd atp-test
+
+# Download dependencies
+go mod tidy
 ```
 
 ## Building
 
 ```bash
-npm run build
+# Build the executable
+go build -o atp-test
+
+# Or build and run directly
+go run main.go
 ```
 
 ## Usage
@@ -21,34 +35,44 @@ npm run build
 
 ### Basic usage (show all events with text):
 ```bash
-npm start
+go run main.go
+# or
+./atp-test
 ```
 
 ### Filter by keyword:
 ```bash
-npm start -- --keyword "hello"
+go run main.go -keyword "hello"
+# or
+./atp-test -k "hello"
 ```
 
 ### Filter by repository DID:
 ```bash
-npm start -- --repository did:plc:abc123xyz
+go run main.go -repository did:plc:abc123xyz
+# or  
+./atp-test -r did:plc:abc123xyz
 ```
 
 ### Filter by both repository and keyword:
 ```bash
-npm start -- --repository did:plc:abc123xyz --keyword "test"
+go run main.go -repository did:plc:abc123xyz -keyword "test"
+# or
+./atp-test -r did:plc:abc123xyz -k "test"
 ```
 
 ### Show help:
 ```bash
-npm start -- --help
+go run main.go -help
+# or
+./atp-test -h
 ```
 
 ## Command Line Options
 
-- `-r, --repository <repo>` - Filter by repository DID
-- `-k, --keyword <keyword>` - Filter by keyword in text (case-insensitive)
-- `-h, --help` - Show help message
+- `-r, -repository <repo>` - Filter by repository DID
+- `-k, -keyword <keyword>` - Filter by keyword in text (case-insensitive)
+- `-h, -help` - Show help message
 
 ## How it works
 
@@ -63,7 +87,7 @@ The server connects to the AT Protocol firehose at `wss://bsky.network` and:
 You can test the filtering logic locally without connecting to the firehose:
 
 ```bash
-node example-filter.js
+go run examples/filter-demo.go
 ```
 
 This will demonstrate how events are filtered based on repository and keyword criteria.
@@ -113,3 +137,27 @@ Reply to: {"parent":{"uri":"at://did:plc:other123/app.bsky.feed.post/abc"}}
 ```
 
 Press `Ctrl+C` to stop the server.
+
+## Development
+
+### Running in development mode:
+```bash
+go run main.go [options]
+```
+
+### Building for production:
+```bash
+go build -o atp-test
+```
+
+### Cross-compilation examples:
+```bash
+# For Linux
+GOOS=linux GOARCH=amd64 go build -o atp-test-linux
+
+# For Windows
+GOOS=windows GOARCH=amd64 go build -o atp-test.exe
+
+# For macOS (Apple Silicon)
+GOOS=darwin GOARCH=arm64 go build -o atp-test-mac
+```
