@@ -4,7 +4,7 @@ go 1.24.5
 
 require (
 	github.com/bluesky-social/indigo v0.0.0-20251003000214-3259b215110e
-	github.com/fxamacker/cbor/v2 v2.5.0
+	github.com/fxamacker/cbor/v2 v2.9.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/ipfs/go-cid v0.4.1
 	github.com/ipld/go-car/v2 v2.13.1
