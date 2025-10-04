@@ -435,7 +435,7 @@ func TestServerStartStop(t *testing.T) {
 
 	// Test that Start and Stop methods exist and can be called
 	// We can't easily test the actual server lifecycle without complex setup
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 

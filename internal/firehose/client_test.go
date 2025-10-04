@@ -624,7 +624,7 @@ func TestHandleEventWithPathFiltering(t *testing.T) {
 			shouldLog: false,
 		},
 		{
-			name: "Delete action ignored",
+			name:    "Delete action ignored",
 			filters: models.FilterOptions{},
 			event: models.ATEvent{
 				Did: "did:plc:test123",
@@ -695,7 +695,7 @@ func TestMatchesFilterEdgeCases(t *testing.T) {
 					"text": "Any text content",
 				},
 			},
-			filters: models.FilterOptions{},
+			filters:  models.FilterOptions{},
 			expected: true,
 		},
 		{
@@ -706,7 +706,7 @@ func TestMatchesFilterEdgeCases(t *testing.T) {
 					"other":   123,
 				},
 			},
-			filters: models.FilterOptions{},
+			filters:  models.FilterOptions{},
 			expected: false,
 		},
 	}
