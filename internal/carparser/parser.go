@@ -2,7 +2,6 @@ package carparser
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -158,6 +157,8 @@ func ParseCARMessageSimple(data []byte) (*ATProtoEvent, error) {
 			}
 			if seq, ok := obj["seq"].(int64); ok {
 				event.Seq = seq
+			} else if seq, ok := obj["seq"].(uint64); ok {
+				event.Seq = int64(seq)
 			} else if seq, ok := obj["seq"].(float64); ok {
 				event.Seq = int64(seq)
 			}
@@ -168,9 +169,23 @@ func ParseCARMessageSimple(data []byte) (*ATProtoEvent, error) {
 			// Parse operations
 			if ops, ok := obj["ops"].([]interface{}); ok {
 				for _, op := range ops {
-					if opMap, ok := op.(map[string]interface{}); ok {
-						operation := Operation{}
+					var operation Operation
+					var opMap map[string]interface{}
 
+					// Handle both map[string]interface{} and map[interface{}]interface{}
+					if stringMap, ok := op.(map[string]interface{}); ok {
+						opMap = stringMap
+					} else if interfaceMap, ok := op.(map[interface{}]interface{}); ok {
+						// Convert map[interface{}]interface{} to map[string]interface{}
+						opMap = make(map[string]interface{})
+						for k, v := range interfaceMap {
+							if keyStr, ok := k.(string); ok {
+								opMap[keyStr] = v
+							}
+						}
+					}
+
+					if opMap != nil {
 						if action, ok := opMap["action"].(string); ok {
 							operation.Action = action
 						}
@@ -183,6 +198,9 @@ func ParseCARMessageSimple(data []byte) (*ATProtoEvent, error) {
 								cidStr := c.String()
 								operation.CID = &cidStr
 							}
+						} else if cidStr, ok := opMap["cid"].(string); ok {
+							// CID might also come as a string
+							operation.CID = &cidStr
 						}
 						if record, ok := opMap["record"]; ok {
 							operation.Record = record
@@ -201,55 +219,4 @@ func ParseCARMessageSimple(data []byte) (*ATProtoEvent, error) {
 	}
 
 	return nil, fmt.Errorf("no AT Protocol commit found in message")
-}
-
-// DebugCARMessage provides debugging information about a CAR message
-func DebugCARMessage(data []byte) {
-	fmt.Printf("CAR message debug: %d bytes\n", len(data))
-	fmt.Printf("First 32 bytes as hex: %x\n", data[:min(32, len(data))])
-
-	// Try to parse as CAR using BlockReader
-	reader := bytes.NewReader(data)
-	blockReader, err := car.NewBlockReader(reader)
-	if err != nil {
-		fmt.Printf("Failed to parse as CAR: %v\n", err)
-		return
-	}
-
-	fmt.Printf("Successfully created CAR BlockReader\n")
-
-	blockCount := 0
-	for {
-		block, err := blockReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			fmt.Printf("Error reading block %d: %v\n", blockCount, err)
-			break
-		}
-
-		fmt.Printf("Block %d: CID=%s, Size=%d bytes\n", blockCount, block.Cid(), len(block.RawData()))
-
-		// Try to decode as CBOR
-		var cborData interface{}
-		if err := cbor.Unmarshal(block.RawData(), &cborData); err == nil {
-			if jsonBytes, err := json.MarshalIndent(cborData, "", "  "); err == nil {
-				fmt.Printf("Block %d CBOR content: %s\n", blockCount, string(jsonBytes))
-			}
-		}
-
-		blockCount++
-		if blockCount > 5 { // Limit output for debugging
-			fmt.Printf("... (stopping after 5 blocks)\n")
-			break
-		}
-	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

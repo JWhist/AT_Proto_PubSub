@@ -3,3 +3,9 @@ dist/
 *.log
 .env
 .DS_Store
+
+# random files
+coverage.out
+coverage.html
+api.test
+atp-test
