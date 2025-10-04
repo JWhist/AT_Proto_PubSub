@@ -71,7 +71,9 @@ func (c *Client) Start(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		fmt.Println("\nShutting down firehose connection...")
-		c.conn.Close()
+		if err := c.conn.Close(); err != nil {
+			fmt.Printf("Error closing connection: %v\n", err)
+		}
 	}()
 
 	fmt.Println("📡 Listening for firehose messages...")
