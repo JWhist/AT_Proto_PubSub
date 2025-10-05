@@ -215,9 +215,18 @@ func (c *Client) matchesFilter(op models.ATOperation, filters models.FilterOptio
 		return text != ""
 	}
 
-	// Check if text contains keyword (case-insensitive)
+	// Check if text contains any of the keywords (comma-separated, case-insensitive)
 	if text != "" {
-		return strings.Contains(strings.ToLower(text), strings.ToLower(filters.Keyword))
+		// Split keywords by comma and check for any match
+		keywordList := strings.Split(filters.Keyword, ",")
+		textLower := strings.ToLower(text)
+
+		for _, keyword := range keywordList {
+			keyword = strings.TrimSpace(keyword) // Remove any surrounding whitespace
+			if keyword != "" && strings.Contains(textLower, strings.ToLower(keyword)) {
+				return true // Return true if any keyword matches
+			}
+		}
 	}
 
 	return false
