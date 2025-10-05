@@ -1,9 +1,12 @@
-# Makefile for atp-test
+# Makefile for AT Proto PubSub
 
 # Build variables
-BINARY_NAME=atp-test
-MAIN_PATH=./cmd/atp-test
+BINARY_NAME=at-proto-pubsub
+MAIN_PATH=./cmd/atprotopubsub
 BUILD_DIR=./bin
+DOCKER_IMAGE=at-proto-pubsub
+DOCKER_TAG=latest
+CONTAINER_NAME=at-proto-pubsub-container
 
 # Default target
 .PHONY: all
@@ -19,9 +22,14 @@ build:
 build-prod:
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o $(BINARY_NAME) $(MAIN_PATH)
 
-# Run the application
+# Run the application with Docker
 .PHONY: run
-run:
+run: docker-build
+	docker run --rm -p 8080:8080 --name $(CONTAINER_NAME) $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+# Run the application locally (without Docker)
+.PHONY: run-local
+run-local:
 	go run $(MAIN_PATH)
 
 # Run tests
@@ -29,10 +37,37 @@ run:
 test:
 	go test ./...
 
+# Docker commands
+.PHONY: docker-build
+docker-build:
+	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+
+.PHONY: docker-run
+docker-run: docker-build
+	docker run --rm -p 8080:8080 --name $(CONTAINER_NAME) $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+.PHONY: docker-run-detached
+docker-run-detached: docker-build
+	docker run -d -p 8080:8080 --name $(CONTAINER_NAME) $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+.PHONY: docker-stop
+docker-stop:
+	docker stop $(CONTAINER_NAME) || true
+
+.PHONY: docker-clean
+docker-clean:
+	docker stop $(CONTAINER_NAME) || true
+	docker rm $(CONTAINER_NAME) || true
+	docker rmi $(DOCKER_IMAGE):$(DOCKER_TAG) || true
+
+.PHONY: docker-logs
+docker-logs:
+	docker logs -f $(CONTAINER_NAME)
+
 # Run the example
 .PHONY: example
 example:
-	go run ./examples/filter-demo.go
+	go run ./test_websocket_client.go
 
 # Clean build artifacts
 .PHONY: clean
@@ -54,15 +89,23 @@ lint:
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build      - Build the application"
-	@echo "  build-prod - Build optimized binary for production"
-	@echo "  run        - Run the application"
-	@echo "  test       - Run tests"
-	@echo "  example    - Run the filter demo example"
-	@echo "  clean      - Clean build artifacts"
-	@echo "  fmt        - Format Go code"
-	@echo "  lint       - Run linter"
-	@echo "  help       - Show this help"
+	@echo "  build               - Build the application"
+	@echo "  build-prod          - Build optimized binary for production"
+	@echo "  run                 - Run the application with Docker"
+	@echo "  run-local           - Run the application locally (without Docker)"
+	@echo "  test                - Run tests"
+	@echo "  example             - Run the WebSocket test client"
+	@echo "  clean               - Clean build artifacts"
+	@echo "  fmt                 - Format Go code"
+	@echo "  lint                - Run linter"
+	@echo "  docker-build        - Build Docker image"
+	@echo "  docker-run          - Build and run with Docker (foreground)"
+	@echo "  docker-run-detached - Build and run with Docker (background)"
+	@echo "  docker-stop         - Stop Docker container"
+	@echo "  docker-clean        - Stop and remove Docker container and image"
+	@echo "  docker-logs         - Show Docker container logs"
+	@echo "  build-all           - Build binaries for all platforms"
+	@echo "  help                - Show this help"
 
 # Cross-compilation targets
 .PHONY: build-linux

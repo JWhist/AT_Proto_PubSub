@@ -1,0 +1,33 @@
+# Ignore git files
+.git
+.gitignore
+
+# Ignore documentation
+README.md
+*.md
+
+# Ignore test files (optional - remove these lines if you want tests in the image)
+*_test.go
+test_websocket_client.go
+
+# Ignore build artifacts
+at-proto-pubsub
+*.exe
+
+# Ignore development files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore temporary files
+tmp/
+temp/
+
+# Ignore logs
+*.log
