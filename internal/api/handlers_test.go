@@ -36,11 +36,11 @@ func TestHandleCreateFilter(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name: "Empty filter (should work)",
+			name: "Empty filter (should be rejected)",
 			payload: models.CreateFilterRequest{
 				Options: models.FilterOptions{},
 			},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "Invalid JSON",
@@ -234,7 +234,9 @@ func TestFilterRouting(t *testing.T) {
 			var body []byte
 			if tt.method == "POST" {
 				payload := models.CreateFilterRequest{
-					Options: models.FilterOptions{},
+					Options: models.FilterOptions{
+						Repository: "did:plc:test123", // Add valid filter criteria
+					},
 				}
 				body, _ = json.Marshal(payload)
 			}

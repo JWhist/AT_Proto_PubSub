@@ -207,7 +207,7 @@ func TestMatchesFilter(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "Empty filters match all",
+			name: "Empty filters blocked by safety check",
 			event: &models.ATEvent{
 				Did: "did:plc:test123",
 				Ops: []models.ATOperation{
@@ -215,7 +215,7 @@ func TestMatchesFilter(t *testing.T) {
 				},
 			},
 			options:  models.FilterOptions{},
-			expected: true,
+			expected: false, // Changed from true to false due to safety check
 		},
 	}
 

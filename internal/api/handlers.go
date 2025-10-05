@@ -27,12 +27,18 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 			"endpoints": []string{
 				"GET /api/status - Get server status",
 				"GET /api/filters - Get current filters",
-				"POST /api/filters/update - Update filters (repository, pathPrefix, keyword)",
+				"POST /api/filters/create - Create new filter subscription",
+				"GET /api/subscriptions/{filterKey} - Get subscription details",
+				"GET /api/stats - Get subscription statistics",
 			},
 			"filters": map[string]string{
 				"repository": "Filter by repository DID (e.g., 'did:plc:abc123')",
 				"pathPrefix": "Filter by operation path prefix (e.g., 'app.bsky.feed.post')",
 				"keyword":    "Filter by keyword in text content",
+			},
+			"requirements": []string{
+				"At least one filter criteria (repository, pathPrefix, or keyword) must be provided",
+				"Filters with no criteria are rejected to prevent forwarding the entire firehose",
 			},
 		},
 	}
@@ -176,7 +182,33 @@ func (s *Server) handleCreateFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate that at least one filter criteria is provided
+	if req.Options.Repository == "" && req.Options.PathPrefix == "" && req.Options.Keyword == "" {
+		response := models.APIResponse{
+			Success: false,
+			Message: "At least one filter criteria must be provided (repository, pathPrefix, or keyword). Filters with no criteria are not allowed to prevent forwarding the entire firehose.",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		if encErr := json.NewEncoder(w).Encode(response); encErr != nil {
+			http.Error(w, "Failed to encode error response", http.StatusInternalServerError)
+		}
+		return
+	}
+
 	filterKey := s.subscriptions.CreateFilter(req.Options)
+	if filterKey == "" {
+		response := models.APIResponse{
+			Success: false,
+			Message: "Failed to create filter - no criteria provided",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		if encErr := json.NewEncoder(w).Encode(response); encErr != nil {
+			http.Error(w, "Failed to encode error response", http.StatusInternalServerError)
+		}
+		return
+	}
 
 	response := models.CreateFilterResponse{
 		FilterKey: filterKey,

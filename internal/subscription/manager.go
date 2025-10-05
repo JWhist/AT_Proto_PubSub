@@ -39,6 +39,12 @@ func NewManager() *Manager {
 
 // CreateFilter creates a new filter subscription and returns a unique key
 func (m *Manager) CreateFilter(options models.FilterOptions) string {
+	// Validate that at least one filter criteria is provided
+	if options.Repository == "" && options.PathPrefix == "" && options.Keyword == "" {
+		log.Printf("❌ Rejected filter creation: no filter criteria provided")
+		return "" // Return empty string to indicate failure
+	}
+
 	filterKey := generateFilterKey()
 
 	m.mu.Lock()
@@ -158,6 +164,13 @@ func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 
 // matchesFilter checks if an event matches the filter criteria
 func (m *Manager) matchesFilter(event *models.ATEvent, options models.FilterOptions) bool {
+	// Safety check: if no filter criteria are set, reject all events
+	// This prevents accidentally forwarding the entire firehose
+	if options.Repository == "" && options.PathPrefix == "" && options.Keyword == "" {
+		log.Printf("⚠️  Blocking event for filter with no criteria (safety check)")
+		return false
+	}
+
 	// Repository filter (exact match on DID)
 	if options.Repository != "" && event.Did != options.Repository {
 		return false
