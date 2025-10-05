@@ -278,9 +278,8 @@ func (c *Client) handleEvent(event models.ATEvent) {
 				continue
 			}
 
-			if c.matchesFilter(op, currentFilters) {
-				// Event matches filter - silently continue processing
-			}
+			// Check if matches filter (for legacy compatibility)
+			c.matchesFilter(op, currentFilters)
 		}
 	}
 }

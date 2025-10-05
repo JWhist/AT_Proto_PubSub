@@ -29,7 +29,7 @@ func NewServer(firehoseClient *firehose.Client, port string) *Server {
 	return NewServerWithConfig(firehoseClient, &config.Config{
 		Server: config.ServerConfig{
 			Port: port,
-			Host: "localhost",
+			// Host left empty to default to binding all interfaces (:port)
 		},
 	})
 }
