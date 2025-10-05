@@ -17,8 +17,10 @@ import (
 
 // Manager handles filter subscriptions and WebSocket connections
 type Manager struct {
-	mu            sync.RWMutex
-	subscriptions map[string]*Subscription
+	mu               sync.RWMutex
+	subscriptions    map[string]*Subscription
+	maxConnections   int
+	totalConnections int
 }
 
 // Subscription represents a filter with its associated WebSocket connections
@@ -33,7 +35,16 @@ type Subscription struct {
 // NewManager creates a new subscription manager
 func NewManager() *Manager {
 	return &Manager{
-		subscriptions: make(map[string]*Subscription),
+		subscriptions:  make(map[string]*Subscription),
+		maxConnections: 1000, // Default limit
+	}
+}
+
+// NewManagerWithConfig creates a new subscription manager with configuration
+func NewManagerWithConfig(maxConnections int) *Manager {
+	return &Manager{
+		subscriptions:  make(map[string]*Subscription),
+		maxConnections: maxConnections,
 	}
 }
 
@@ -106,15 +117,42 @@ func (m *Manager) GetSubscriptions() []models.FilterSubscription {
 	return subs
 }
 
+// ConnectionResult represents the result of trying to add a connection
+type ConnectionResult struct {
+	Success      bool
+	ErrorMessage string
+	ErrorCode    string
+}
+
 // AddConnection adds a WebSocket connection to a filter subscription
 func (m *Manager) AddConnection(filterKey string, conn *websocket.Conn) bool {
-	m.mu.RLock()
-	sub, exists := m.subscriptions[filterKey]
-	m.mu.RUnlock()
+	result := m.AddConnectionWithResult(filterKey, conn)
+	return result.Success
+}
 
+// AddConnectionWithResult adds a WebSocket connection and returns detailed result
+func (m *Manager) AddConnectionWithResult(filterKey string, conn *websocket.Conn) ConnectionResult {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Check if we've reached the maximum connection limit
+	if m.totalConnections >= m.maxConnections {
+		log.Printf("❌ Connection rejected: maximum connections (%d) reached", m.maxConnections)
+		return ConnectionResult{
+			Success:      false,
+			ErrorMessage: fmt.Sprintf("Maximum connections limit reached (%d/%d)", m.totalConnections, m.maxConnections),
+			ErrorCode:    "MAX_CONNECTIONS_REACHED",
+		}
+	}
+
+	sub, exists := m.subscriptions[filterKey]
 	if !exists {
 		log.Printf("❌ Attempted to connect to non-existent filter: %s", filterKey[:8]+"...")
-		return false
+		return ConnectionResult{
+			Success:      false,
+			ErrorMessage: "Invalid filter key",
+			ErrorCode:    "INVALID_FILTER_KEY",
+		}
 	}
 
 	sub.mu.Lock()
@@ -122,26 +160,39 @@ func (m *Manager) AddConnection(filterKey string, conn *websocket.Conn) bool {
 	connectionCount := len(sub.Connections)
 	sub.mu.Unlock()
 
-	log.Printf("🔌 Added connection to filter %s (total connections: %d)", filterKey[:8]+"...", connectionCount)
-	return true
+	m.totalConnections++
+
+	log.Printf("🔌 Added connection to filter %s (filter connections: %d, total connections: %d/%d)",
+		filterKey[:8]+"...", connectionCount, m.totalConnections, m.maxConnections)
+
+	return ConnectionResult{
+		Success: true,
+	}
 }
 
 // RemoveConnection removes a WebSocket connection from a filter subscription
 func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
-	m.mu.RLock()
-	sub, exists := m.subscriptions[filterKey]
-	m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
+	sub, exists := m.subscriptions[filterKey]
 	if !exists {
 		return
 	}
 
 	sub.mu.Lock()
-	delete(sub.Connections, conn)
+	_, wasConnected := sub.Connections[conn]
+	if wasConnected {
+		delete(sub.Connections, conn)
+		m.totalConnections--
+	}
 	connectionCount := len(sub.Connections)
 	sub.mu.Unlock()
 
-	log.Printf("🔌 Removed connection from filter %s (remaining connections: %d)", filterKey[:8]+"...", connectionCount)
+	if wasConnected {
+		log.Printf("🔌 Removed connection from filter %s (filter connections: %d, total connections: %d/%d)",
+			filterKey[:8]+"...", connectionCount, m.totalConnections, m.maxConnections)
+	}
 }
 
 // BroadcastEvent sends an event to all matching filter subscriptions
@@ -331,14 +382,25 @@ func (m *Manager) broadcastToSubscription(sub *Subscription, event *models.ATEve
 	// Clean up dead connections
 	if len(deadConnections) > 0 {
 		sub.mu.Lock()
+		removedCount := 0
 		for _, conn := range deadConnections {
-			delete(sub.Connections, conn)
+			if _, exists := sub.Connections[conn]; exists {
+				delete(sub.Connections, conn)
+				removedCount++
+			}
 			if err := conn.Close(); err != nil {
 				log.Printf("Failed to close dead connection: %v", err)
 			}
 		}
 		sub.mu.Unlock()
-		log.Printf("🧹 Cleaned up %d dead connections from filter %s", len(deadConnections), sub.FilterKey[:8]+"...")
+
+		// Update total connections count (need to get manager lock)
+		m.mu.Lock()
+		m.totalConnections -= removedCount
+		m.mu.Unlock()
+
+		log.Printf("🧹 Cleaned up %d dead connections from filter %s (total connections: %d/%d)",
+			removedCount, sub.FilterKey[:8]+"...", m.totalConnections, m.maxConnections)
 	}
 }
 
@@ -347,20 +409,17 @@ func (m *Manager) GetStats() map[string]interface{} {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	totalConnections := 0
 	activeFilters := len(m.subscriptions)
-
-	for _, sub := range m.subscriptions {
-		sub.mu.RLock()
-		totalConnections += len(sub.Connections)
-		sub.mu.RUnlock()
-	}
+	connectionUtilization := float64(m.totalConnections) / float64(max(m.maxConnections, 1)) * 100
 
 	return map[string]interface{}{
-		"active_filters":    activeFilters,
-		"total_connections": totalConnections,
-		"uptime":            time.Since(time.Now()).String(), // This would be better tracked at startup
-		"avg_connections":   float64(totalConnections) / float64(max(activeFilters, 1)),
+		"active_filters":         activeFilters,
+		"total_connections":      m.totalConnections,
+		"max_connections":        m.maxConnections,
+		"connection_utilization": fmt.Sprintf("%.1f%%", connectionUtilization),
+		"available_connections":  m.maxConnections - m.totalConnections,
+		"uptime":                 time.Since(time.Now()).String(), // This would be better tracked at startup
+		"avg_connections":        float64(m.totalConnections) / float64(max(activeFilters, 1)),
 	}
 }
 

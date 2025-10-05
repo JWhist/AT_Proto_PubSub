@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/events/schedulers/sequential"
 	"github.com/gorilla/websocket"
 
+	"github.com/JWhist/AT_Proto_PubSub/internal/config"
 	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
 
@@ -24,12 +25,21 @@ type Client struct {
 	conn          *websocket.Conn
 	eventCallback func(*models.ATEvent)
 	callbackMu    sync.RWMutex
+	config        *config.Config
 }
 
 // NewClient creates a new firehose client instance
 func NewClient() *Client {
 	return &Client{
 		filters: models.FilterOptions{},
+	}
+}
+
+// NewClientWithConfig creates a new firehose client instance with configuration
+func NewClientWithConfig(cfg *config.Config) *Client {
+	return &Client{
+		filters: models.FilterOptions{},
+		config:  cfg,
 	}
 }
 
@@ -71,9 +81,15 @@ func (c *Client) Start(ctx context.Context) error {
 	fmt.Printf("  Keyword: %s\n", getFilterString(filters.Keyword))
 	fmt.Println("Connecting to firehose...")
 
+	// Get firehose URL from config or use default
+	firehoseURL := "wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos"
+	if c.config != nil && c.config.Firehose.URL != "" {
+		firehoseURL = c.config.Firehose.URL
+	}
+
 	// Connect to the AT Protocol firehose using the proper indigo library
 	dialer := websocket.DefaultDialer
-	conn, _, err := dialer.Dial("wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos", nil)
+	conn, _, err := dialer.Dial(firehoseURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to firehose: %w", err)
 	}

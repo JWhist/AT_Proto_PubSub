@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 	httpSwagger "github.com/swaggo/http-swagger"
 
+	"github.com/JWhist/AT_Proto_PubSub/internal/config"
 	"github.com/JWhist/AT_Proto_PubSub/internal/firehose"
 	"github.com/JWhist/AT_Proto_PubSub/internal/subscription"
 
@@ -20,24 +21,43 @@ type Server struct {
 	subscriptions  *subscription.Manager
 	server         *http.Server
 	upgrader       websocket.Upgrader
+	config         *config.Config
 }
 
 // NewServer creates a new API server instance
 func NewServer(firehoseClient *firehose.Client, port string) *Server {
+	return NewServerWithConfig(firehoseClient, &config.Config{
+		Server: config.ServerConfig{
+			Port: port,
+			Host: "localhost",
+		},
+	})
+}
+
+// NewServerWithConfig creates a new API server instance with configuration
+func NewServerWithConfig(firehoseClient *firehose.Client, cfg *config.Config) *Server {
 	mux := http.NewServeMux()
+
+	// Configure CORS based on config
+	checkOrigin := func(r *http.Request) bool {
+		if cfg.Server.CORS.AllowAllOrigins {
+			return true
+		}
+		// TODO: Implement specific origin checking based on cfg.Server.CORS.AllowedOrigins
+		return true
+	}
 
 	apiServer := &Server{
 		firehoseClient: firehoseClient,
-		subscriptions:  subscription.NewManager(),
+		subscriptions:  subscription.NewManagerWithConfig(cfg.Server.MaxConnections),
 		server: &http.Server{
-			Addr:    ":" + port,
+			Addr:    cfg.GetListenAddress(),
 			Handler: mux,
 		},
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins for development
-			},
+			CheckOrigin: checkOrigin,
 		},
+		config: cfg,
 	}
 
 	// Register API routes

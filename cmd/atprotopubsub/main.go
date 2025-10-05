@@ -2,39 +2,54 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/JWhist/AT_Proto_PubSub/internal/api"
+	"github.com/JWhist/AT_Proto_PubSub/internal/config"
 	"github.com/JWhist/AT_Proto_PubSub/internal/firehose"
 )
 
 func main() {
+	// Parse command line flags
+	configFile := flag.String("config", "config.yaml", "Path to configuration file")
+	flag.Parse()
+
+	// Load configuration
+	cfg, err := config.LoadConfigWithDefaults(*configFile)
+	if err != nil {
+		log.Printf("Failed to load config from %s, using defaults: %v", *configFile, err)
+		cfg = config.GetDefaultConfig()
+	}
+
+	// Print startup information with config values
 	fmt.Println("AT Protocol Firehose Filter Server with WebSocket Subscriptions")
+	fmt.Printf("Configuration loaded from: %s\n", *configFile)
+	fmt.Printf("Server will start on: %s\n", cfg.GetBaseURL())
 	fmt.Println("Use the API endpoints to create filter subscriptions:")
-	fmt.Println("  GET  http://localhost:8080/api/status")
-	fmt.Println("  GET  http://localhost:8080/api/subscriptions")
-	fmt.Println("  POST http://localhost:8080/api/filters/create")
-	fmt.Println("  GET  http://localhost:8080/api/subscriptions/{filterKey}")
-	fmt.Println("  GET  http://localhost:8080/api/stats")
+	fmt.Printf("  GET  %s/api/status\n", cfg.GetBaseURL())
+	fmt.Printf("  GET  %s/api/subscriptions\n", cfg.GetBaseURL())
+	fmt.Printf("  POST %s/api/filters/create\n", cfg.GetBaseURL())
+	fmt.Printf("  GET  %s/api/subscriptions/{filterKey}\n", cfg.GetBaseURL())
+	fmt.Printf("  GET  %s/api/stats\n", cfg.GetBaseURL())
 	fmt.Println("")
 	fmt.Println("WebSocket connection:")
-	fmt.Println("  ws://localhost:8080/ws/{filterKey}")
+	fmt.Printf("  ws://%s:%s/ws/{filterKey}\n", cfg.Server.Host, cfg.Server.Port)
 	fmt.Println("")
 	fmt.Println("API Documentation:")
-	fmt.Println("  http://localhost:8080/swagger/")
+	fmt.Printf("  %s/swagger/\n", cfg.GetBaseURL())
 	fmt.Println()
 
-	// Create firehose client instance (starts with no filters)
-	firehoseClient := firehose.NewClient()
+	// Create firehose client instance with configuration
+	firehoseClient := firehose.NewClientWithConfig(cfg)
 
-	// Create API server
-	apiServer := api.NewServer(firehoseClient, "8080")
+	// Create API server with configuration
+	apiServer := api.NewServerWithConfig(firehoseClient, cfg)
 
 	// Connect firehose events to subscription manager
 	firehoseClient.SetEventCallback(apiServer.GetSubscriptionManager().BroadcastEvent)
@@ -72,8 +87,8 @@ func main() {
 	fmt.Println("\nReceived shutdown signal...")
 	cancel()
 
-	// Graceful shutdown with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Graceful shutdown with configured timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer shutdownCancel()
 
 	if err := apiServer.Stop(shutdownCtx); err != nil {

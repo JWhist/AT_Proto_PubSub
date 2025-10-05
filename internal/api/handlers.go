@@ -431,11 +431,18 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add connection to the subscription
-	if !s.subscriptions.AddConnection(path, conn) {
+	result := s.subscriptions.AddConnectionWithResult(path, conn)
+	if !result.Success {
+		errorData := map[string]string{
+			"error":     result.ErrorMessage,
+			"errorCode": result.ErrorCode,
+			"filterKey": path,
+		}
+
 		errorMsg := models.WSMessage{
 			Type:      "error",
 			Timestamp: time.Now(),
-			Data:      map[string]string{"error": "Invalid filter key", "filterKey": path},
+			Data:      errorData,
 		}
 		if err := conn.WriteJSON(errorMsg); err != nil {
 			log.Printf("Failed to write error message: %v", err)
