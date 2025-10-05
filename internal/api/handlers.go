@@ -13,7 +13,53 @@ import (
 	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
 
+// @title AT Protocol PubSub API
+// @version 1.0.0
+// @description A real-time AT Protocol firehose filtering and subscription service.
+// @description
+// @description ## Overview
+// @description This API provides filtering and subscription capabilities for the AT Protocol firehose, allowing clients to:
+// @description - Create filtered subscriptions for specific repositories, content types, or keywords
+// @description - Subscribe to real-time events via WebSocket connections
+// @description - Monitor subscription statistics and health
+// @description
+// @description ## Safety Features
+// @description - **Filter Validation**: All filters must specify at least one criteria to prevent forwarding the entire firehose
+// @description - **Enhanced Timestamps**: All forwarded events include detailed timing metadata for observability
+// @description - **Thread Safety**: All operations are thread-safe and tested with race condition detection
+// @description
+// @description ## WebSocket Protocol
+// @description Connect to `/ws/{filterKey}` to receive real-time filtered events with ping/pong support.
+
+// @contact.name AT Protocol PubSub
+// @contact.url https://github.com/JWhist/AT_Proto_PubSub
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8080
+// @BasePath /
+
+// @tag.name Health
+// @tag.description Server health and status endpoints
+
+// @tag.name Filters
+// @tag.description Filter configuration and management
+
+// @tag.name Subscriptions
+// @tag.description Subscription management and statistics
+
+// @tag.name WebSocket
+// @tag.description Real-time WebSocket connections
+
 // handleRoot provides basic information about the API
+// @Summary API Information
+// @Description Get basic information about the API and available endpoints
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.APIResponse "API information retrieved successfully"
+// @Router / [get]
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -51,6 +97,13 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleStatus returns the current server status
+// @Summary Server Status
+// @Description Get the current server status and active filters
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.APIResponse "Server status retrieved successfully"
+// @Router /api/status [get]
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -76,6 +129,13 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleFilters returns the current filter settings
+// @Summary Get Current Filters
+// @Description Retrieve the current global filter settings
+// @Tags Filters
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.APIResponse "Current filters retrieved successfully"
+// @Router /api/filters [get]
 func (s *Server) handleFilters(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -98,6 +158,15 @@ func (s *Server) handleFilters(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUpdateFilters updates the filter settings
+// @Summary Update Global Filters
+// @Description Update the global filter settings (legacy endpoint)
+// @Tags Filters
+// @Accept json
+// @Produce json
+// @Param request body models.FilterUpdateRequest true "Filter update request"
+// @Success 200 {object} models.APIResponse "Filters updated successfully"
+// @Failure 400 {object} models.APIResponse "Invalid request body"
+// @Router /api/filters/update [post]
 func (s *Server) handleUpdateFilters(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -162,6 +231,15 @@ func getFilterString(filter string) string {
 }
 
 // handleCreateFilter creates a new filter subscription and returns a filter key
+// @Summary Create Filter Subscription
+// @Description Create a new filter subscription for receiving real-time events. At least one filter criteria must be provided to prevent forwarding the entire firehose.
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body models.CreateFilterRequest true "Filter creation request"
+// @Success 200 {object} models.CreateFilterResponse "Filter subscription created successfully"
+// @Failure 400 {object} models.APIResponse "Invalid request - no filter criteria provided"
+// @Router /api/filters/create [post]
 func (s *Server) handleCreateFilter(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -224,6 +302,13 @@ func (s *Server) handleCreateFilter(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGetSubscriptions returns all filter subscriptions
+// @Summary Get All Subscriptions
+// @Description Retrieve all active filter subscriptions
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.APIResponse "Subscriptions retrieved successfully"
+// @Router /api/subscriptions [get]
 func (s *Server) handleGetSubscriptions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -246,6 +331,15 @@ func (s *Server) handleGetSubscriptions(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleGetSubscription returns a specific filter subscription
+// @Summary Get Subscription Details
+// @Description Get detailed information about a specific filter subscription
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param filterKey path string true "The unique filter key for the subscription"
+// @Success 200 {object} models.APIResponse "Subscription details retrieved successfully"
+// @Failure 404 {object} models.APIResponse "Subscription not found"
+// @Router /api/subscriptions/{filterKey} [get]
 func (s *Server) handleGetSubscription(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -284,6 +378,13 @@ func (s *Server) handleGetSubscription(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleStats returns subscription manager statistics
+// @Summary Get Statistics
+// @Description Get subscription manager statistics and metrics
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.APIResponse "Statistics retrieved successfully"
+// @Router /api/stats [get]
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -306,6 +407,14 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleWebSocket handles WebSocket upgrade and message routing
+// @Summary WebSocket Connection
+// @Description Establish a WebSocket connection to receive real-time filtered events. Connect to /ws/{filterKey} with the filter key obtained from creating a subscription.
+// @Tags WebSocket
+// @Param filterKey path string true "The unique filter key obtained from creating a subscription"
+// @Success 101 "WebSocket connection established"
+// @Failure 400 "Filter key required or invalid"
+// @Failure 404 "Invalid filter key"
+// @Router /ws/{filterKey} [get]
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Extract filter key from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/ws/")

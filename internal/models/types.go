@@ -32,6 +32,27 @@ type ATEvent struct {
 	Ops   []ATOperation `json:"ops"`
 }
 
+// EnrichedATEvent represents an AT Protocol event with additional timestamp metadata
+type EnrichedATEvent struct {
+	// Original AT Protocol event data
+	Event string        `json:"event"`
+	Did   string        `json:"did"`
+	Time  string        `json:"time"` // Original firehose timestamp
+	Kind  string        `json:"kind"`
+	Ops   []ATOperation `json:"ops"`
+
+	// Additional timestamp metadata
+	Timestamps EventTimestamps `json:"timestamps"`
+}
+
+// EventTimestamps contains various timestamps for event lifecycle tracking
+type EventTimestamps struct {
+	Original  string `json:"original"`  // Original timestamp from AT Protocol firehose
+	Received  string `json:"received"`  // When we received the event from firehose
+	Forwarded string `json:"forwarded"` // When we forward to WebSocket clients
+	FilterKey string `json:"filterKey"` // Which filter matched this event
+}
+
 // ATOperation represents an operation within an AT Protocol event
 type ATOperation struct {
 	Action     string      `json:"action"`

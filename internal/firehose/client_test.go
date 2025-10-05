@@ -1,6 +1,7 @@
 package firehose
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/JWhist/AT_Proto_PubSub/internal/models"
@@ -8,18 +9,28 @@ import (
 
 // MockEventCallback is a test implementation of EventCallback
 type MockEventCallback struct {
+	mu     sync.Mutex
 	events []models.ATEvent
 }
 
 func (m *MockEventCallback) Call(event *models.ATEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.events = append(m.events, *event)
 }
 
 func (m *MockEventCallback) GetEvents() []models.ATEvent {
-	return m.events
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Return a copy to avoid race conditions when reading
+	eventsCopy := make([]models.ATEvent, len(m.events))
+	copy(eventsCopy, m.events)
+	return eventsCopy
 }
 
 func (m *MockEventCallback) Reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.events = nil
 }
 

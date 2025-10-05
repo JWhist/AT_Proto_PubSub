@@ -146,19 +146,25 @@ func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
 
 // BroadcastEvent sends an event to all matching filter subscriptions
 func (m *Manager) BroadcastEvent(event *models.ATEvent) {
+	receivedAt := time.Now() // Track when we received this event
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	matchCount := 0
 	for _, sub := range m.subscriptions {
 		if m.matchesFilter(event, sub.Options) {
-			m.broadcastToSubscription(sub, event)
+			m.broadcastToSubscription(sub, event, receivedAt)
 			matchCount++
 		}
 	}
 
 	if matchCount > 0 {
-		log.Printf("📡 Broadcasted event to %d matching filter(s) (did: %s...)", matchCount, event.Did[:20])
+		didPreview := event.Did
+		if len(didPreview) > 20 {
+			didPreview = didPreview[:20] + "..."
+		}
+		log.Printf("📡 Broadcasted event to %d matching filter(s) (did: %s)", matchCount, didPreview)
 	}
 }
 
@@ -241,7 +247,7 @@ func (m *Manager) recordContainsKeyword(record interface{}, keyword string) bool
 }
 
 // broadcastToSubscription sends an event to all connections in a subscription
-func (m *Manager) broadcastToSubscription(sub *Subscription, event *models.ATEvent) {
+func (m *Manager) broadcastToSubscription(sub *Subscription, event *models.ATEvent, receivedAt time.Time) {
 	sub.mu.RLock()
 	connections := make([]*websocket.Conn, 0, len(sub.Connections))
 	for conn := range sub.Connections {
@@ -253,10 +259,26 @@ func (m *Manager) broadcastToSubscription(sub *Subscription, event *models.ATEve
 		return
 	}
 
+	// Create enriched event with timestamp metadata
+	forwardedAt := time.Now()
+	enrichedEvent := models.EnrichedATEvent{
+		Event: event.Event,
+		Did:   event.Did,
+		Time:  event.Time,
+		Kind:  event.Kind,
+		Ops:   event.Ops,
+		Timestamps: models.EventTimestamps{
+			Original:  event.Time,                           // Original firehose timestamp
+			Received:  receivedAt.Format(time.RFC3339Nano),  // When we received from firehose
+			Forwarded: forwardedAt.Format(time.RFC3339Nano), // When we forward to clients
+			FilterKey: sub.FilterKey,                        // Which filter matched
+		},
+	}
+
 	message := models.WSMessage{
 		Type:      "event",
-		Timestamp: time.Now(),
-		Data:      event,
+		Timestamp: forwardedAt,
+		Data:      enrichedEvent,
 	}
 
 	deadConnections := make([]*websocket.Conn, 0)
@@ -266,13 +288,26 @@ func (m *Manager) broadcastToSubscription(sub *Subscription, event *models.ATEve
 			log.Printf("⚠️  Failed to send message to connection: %v", err)
 			deadConnections = append(deadConnections, conn)
 		} else {
-			// Log successful forwarding to WebSocket
+			// Log successful forwarding to WebSocket with timing info
+			didPreview := event.Did
+			if len(didPreview) > 20 {
+				didPreview = didPreview[8:20] + "..."
+			} else if len(didPreview) > 8 {
+				didPreview = didPreview[8:] + "..."
+			}
+
+			filterPreview := sub.FilterKey
+			if len(filterPreview) > 8 {
+				filterPreview = filterPreview[:8] + "..."
+			}
+
 			if len(event.Ops) > 0 {
 				op := event.Ops[0] // Log first operation
-				log.Printf("📤 Forwarded event to WebSocket: action=%s, path=%s (repo: %s...)",
-					op.Action, op.Path, event.Did[8:20])
+				log.Printf("📤 Forwarded event to WebSocket: action=%s, path=%s (repo: %s) [filter: %s, forwarded: %s]",
+					op.Action, op.Path, didPreview, filterPreview, forwardedAt.Format("15:04:05.000"))
 			} else {
-				log.Printf("📤 Forwarded event to WebSocket (repo: %s...)", event.Did[8:20])
+				log.Printf("📤 Forwarded event to WebSocket (repo: %s) [filter: %s, forwarded: %s]",
+					didPreview, filterPreview, forwardedAt.Format("15:04:05.000"))
 			}
 		}
 	}

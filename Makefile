@@ -35,7 +35,17 @@ run-local:
 # Run tests
 .PHONY: test
 test:
-	go test ./...
+	go test --race ./... -v
+
+# Generate Swagger documentation
+.PHONY: swagger
+swagger:
+	swag init -g internal/api/handlers.go -o docs/
+
+# Install Swagger tools
+.PHONY: swagger-install
+swagger-install:
+	go install github.com/swaggo/swag/cmd/swag@latest
 
 # Docker commands
 .PHONY: docker-build
@@ -98,6 +108,8 @@ help:
 	@echo "  clean               - Clean build artifacts"
 	@echo "  fmt                 - Format Go code"
 	@echo "  lint                - Run linter"
+	@echo "  swagger             - Generate Swagger API documentation"
+	@echo "  swagger-install     - Install Swagger tools"
 	@echo "  docker-build        - Build Docker image"
 	@echo "  docker-run          - Build and run with Docker (foreground)"
 	@echo "  docker-run-detached - Build and run with Docker (background)"

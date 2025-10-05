@@ -1,0 +1,364 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "A real-time AT Protocol firehose filtering and subscription service.\n\n## Overview\nThis API provides filtering and subscription capabilities for the AT Protocol firehose, allowing clients to:\n- Create filtered subscriptions for specific repositories, content types, or keywords\n- Subscribe to real-time events via WebSocket connections\n- Monitor subscription statistics and health\n\n## Safety Features\n- **Filter Validation**: All filters must specify at least one criteria to prevent forwarding the entire firehose\n- **Enhanced Timestamps**: All forwarded events include detailed timing metadata for observability\n- **Thread Safety**: All operations are thread-safe and tested with race condition detection\n\n## WebSocket Protocol\nConnect to `/ws/{filterKey}` to receive real-time filtered events with ping/pong support.",
+        "title": "AT Protocol PubSub API",
+        "contact": {
+            "name": "AT Protocol PubSub",
+            "url": "https://github.com/JWhist/AT_Proto_PubSub"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "1.0.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/": {
+            "get": {
+                "description": "Get basic information about the API and available endpoints",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Health"
+                ],
+                "summary": "API Information",
+                "responses": {
+                    "200": {
+                        "description": "API information retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/filters": {
+            "get": {
+                "description": "Retrieve the current global filter settings",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Get Current Filters",
+                "responses": {
+                    "200": {
+                        "description": "Current filters retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/filters/create": {
+            "post": {
+                "description": "Create a new filter subscription for receiving real-time events. At least one filter criteria must be provided to prevent forwarding the entire firehose.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Create Filter Subscription",
+                "parameters": [
+                    {
+                        "description": "Filter creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateFilterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Filter subscription created successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateFilterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request - no filter criteria provided",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/filters/update": {
+            "post": {
+                "description": "Update the global filter settings (legacy endpoint)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Filters"
+                ],
+                "summary": "Update Global Filters",
+                "parameters": [
+                    {
+                        "description": "Filter update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.FilterUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Filters updated successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/stats": {
+            "get": {
+                "description": "Get subscription manager statistics and metrics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get Statistics",
+                "responses": {
+                    "200": {
+                        "description": "Statistics retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/status": {
+            "get": {
+                "description": "Get the current server status and active filters",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Server Status",
+                "responses": {
+                    "200": {
+                        "description": "Server status retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/subscriptions": {
+            "get": {
+                "description": "Retrieve all active filter subscriptions",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get All Subscriptions",
+                "responses": {
+                    "200": {
+                        "description": "Subscriptions retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/subscriptions/{filterKey}": {
+            "get": {
+                "description": "Get detailed information about a specific filter subscription",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get Subscription Details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The unique filter key for the subscription",
+                        "name": "filterKey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Subscription details retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Subscription not found",
+                        "schema": {
+                            "$ref": "#/definitions/models.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ws/{filterKey}": {
+            "get": {
+                "description": "Establish a WebSocket connection to receive real-time filtered events. Connect to /ws/{filterKey} with the filter key obtained from creating a subscription.",
+                "tags": [
+                    "WebSocket"
+                ],
+                "summary": "WebSocket Connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The unique filter key obtained from creating a subscription",
+                        "name": "filterKey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "WebSocket connection established"
+                    },
+                    "400": {
+                        "description": "Filter key required or invalid"
+                    },
+                    "404": {
+                        "description": "Invalid filter key"
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "models.APIResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.CreateFilterRequest": {
+            "type": "object",
+            "properties": {
+                "options": {
+                    "$ref": "#/definitions/models.FilterOptions"
+                }
+            }
+        },
+        "models.CreateFilterResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "filterKey": {
+                    "type": "string"
+                },
+                "options": {
+                    "$ref": "#/definitions/models.FilterOptions"
+                }
+            }
+        },
+        "models.FilterOptions": {
+            "type": "object",
+            "properties": {
+                "keyword": {
+                    "type": "string"
+                },
+                "pathPrefix": {
+                    "type": "string"
+                },
+                "repository": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.FilterUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "keyword": {
+                    "type": "string"
+                },
+                "pathPrefix": {
+                    "type": "string"
+                },
+                "repository": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "description": "Server health and status endpoints",
+            "name": "Health"
+        },
+        {
+            "description": "Filter configuration and management",
+            "name": "Filters"
+        },
+        {
+            "description": "Subscription management and statistics",
+            "name": "Subscriptions"
+        },
+        {
+            "description": "Real-time WebSocket connections",
+            "name": "WebSocket"
+        }
+    ]
+}

@@ -196,34 +196,52 @@ Filters are **persistent and lightweight** - once created, they remain available
 
 ### WebSocket Message Format
 
-When connected, you'll receive JSON messages in this format:
+When connected, you'll receive JSON messages with enhanced timestamp tracking in this format:
 
 ```json
 {
   "type": "event",
+  "timestamp": "2025-10-04T21:15:33.456Z",
   "data": {
-    "event": {
-      "commit": {
-        "rev": "3l4k5j6h7g8f9h0i1j2k3l4m5n6o7p8q",
-        "time": "2024-10-04T21:15:32.123Z"
-      },
-      "did": "did:plc:abc123xyz456",
-      "ops": [
-        {
-          "action": "create",
-          "path": "app.bsky.feed.post/3l4k5j6h7g8f",
-          "record": {
-            "text": "This is a test post!",
-            "langs": ["en"],
-            "createdAt": "2024-10-04T21:15:32.123Z"
-          }
+    "event": "commit",
+    "did": "did:plc:abc123xyz456",
+    "time": "2025-10-04T21:15:32.123Z",
+    "kind": "commit",
+    "ops": [
+      {
+        "action": "create",
+        "path": "app.bsky.feed.post/3l4k5j6h7g8f",
+        "collection": "app.bsky.feed.post",
+        "rkey": "3l4k5j6h7g8f",
+        "record": {
+          "text": "This is a test post!",
+          "langs": ["en"],
+          "createdAt": "2025-10-04T21:15:32.123Z"
         }
-      ]
-    },
-    "filterKey": "8a3ce5f31b47d4788df91aeb38a565fe"
+      }
+    ],
+    "timestamps": {
+      "original": "2025-10-04T21:15:32.123Z",
+      "received": "2025-10-04T21:15:32.845Z",
+      "forwarded": "2025-10-04T21:15:33.456Z",
+      "filterKey": "8a3ce5f31b47d4788df91aeb38a565fe"
+    }
   }
 }
 ```
+
+#### Timestamp Fields Explained
+
+- **`timestamp`**: When the WebSocket message was created by our server
+- **`original`**: Original timestamp from the AT Protocol firehose
+- **`received`**: When our server received the event from the firehose
+- **`forwarded`**: When our server forwarded the event to WebSocket clients
+- **`filterKey`**: Which filter subscription matched this event
+
+This timing information helps with:
+- **Latency analysis**: Compare `original` vs `forwarded` for end-to-end latency
+- **Processing time**: Compare `received` vs `forwarded` for server processing time
+- **Filter tracking**: Know which filter matched the event
 
 ### Connection Messages
 You'll also receive connection status messages:

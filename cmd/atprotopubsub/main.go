@@ -25,6 +25,9 @@ func main() {
 	fmt.Println("")
 	fmt.Println("WebSocket connection:")
 	fmt.Println("  ws://localhost:8080/ws/{filterKey}")
+	fmt.Println("")
+	fmt.Println("API Documentation:")
+	fmt.Println("  http://localhost:8080/swagger/")
 	fmt.Println()
 
 	// Create firehose client instance (starts with no filters)

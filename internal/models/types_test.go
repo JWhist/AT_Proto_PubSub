@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestFilterOptions_JSONMarshaling(t *testing.T) {
@@ -336,4 +337,90 @@ func ptrValueOrNil(ptr *string) interface{} {
 		return nil
 	}
 	return *ptr
+}
+
+func TestEnrichedATEvent_JSONMarshaling(t *testing.T) {
+	now := time.Now()
+
+	enrichedEvent := EnrichedATEvent{
+		Event: "commit",
+		Did:   "did:plc:test123",
+		Time:  "2025-10-04T21:15:32.123Z",
+		Kind:  "commit",
+		Ops: []ATOperation{
+			{
+				Action: "create",
+				Path:   "app.bsky.feed.post/test123",
+				Record: map[string]interface{}{
+					"text": "Test message",
+				},
+			},
+		},
+		Timestamps: EventTimestamps{
+			Original:  "2025-10-04T21:15:32.123Z",
+			Received:  now.Format(time.RFC3339Nano),
+			Forwarded: now.Add(time.Millisecond).Format(time.RFC3339Nano),
+			FilterKey: "abc123def456",
+		},
+	}
+
+	// Test JSON marshaling
+	jsonData, err := json.Marshal(enrichedEvent)
+	if err != nil {
+		t.Fatalf("Failed to marshal EnrichedATEvent: %v", err)
+	}
+
+	// Test JSON unmarshaling
+	var unmarshaled EnrichedATEvent
+	if err := json.Unmarshal(jsonData, &unmarshaled); err != nil {
+		t.Fatalf("Failed to unmarshal EnrichedATEvent: %v", err)
+	}
+
+	// Verify key fields
+	if unmarshaled.Event != enrichedEvent.Event {
+		t.Errorf("Expected event %s, got %s", enrichedEvent.Event, unmarshaled.Event)
+	}
+
+	if unmarshaled.Did != enrichedEvent.Did {
+		t.Errorf("Expected did %s, got %s", enrichedEvent.Did, unmarshaled.Did)
+	}
+
+	if unmarshaled.Timestamps.FilterKey != enrichedEvent.Timestamps.FilterKey {
+		t.Errorf("Expected filter key %s, got %s", enrichedEvent.Timestamps.FilterKey, unmarshaled.Timestamps.FilterKey)
+	}
+
+	if unmarshaled.Timestamps.Original != enrichedEvent.Timestamps.Original {
+		t.Errorf("Expected original timestamp %s, got %s", enrichedEvent.Timestamps.Original, unmarshaled.Timestamps.Original)
+	}
+}
+
+func TestEventTimestamps_JSONMarshaling(t *testing.T) {
+	now := time.Now()
+
+	timestamps := EventTimestamps{
+		Original:  "2025-10-04T21:15:32.123Z",
+		Received:  now.Format(time.RFC3339Nano),
+		Forwarded: now.Add(time.Millisecond).Format(time.RFC3339Nano),
+		FilterKey: "filter123",
+	}
+
+	// Test JSON marshaling
+	jsonData, err := json.Marshal(timestamps)
+	if err != nil {
+		t.Fatalf("Failed to marshal EventTimestamps: %v", err)
+	}
+
+	// Test JSON unmarshaling
+	var unmarshaled EventTimestamps
+	if err := json.Unmarshal(jsonData, &unmarshaled); err != nil {
+		t.Fatalf("Failed to unmarshal EventTimestamps: %v", err)
+	}
+
+	if unmarshaled.FilterKey != timestamps.FilterKey {
+		t.Errorf("Expected filter key %s, got %s", timestamps.FilterKey, unmarshaled.FilterKey)
+	}
+
+	if unmarshaled.Original != timestamps.Original {
+		t.Errorf("Expected original %s, got %s", timestamps.Original, unmarshaled.Original)
+	}
 }

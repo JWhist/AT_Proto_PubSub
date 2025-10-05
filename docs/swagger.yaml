@@ -1,0 +1,254 @@
+basePath: /
+definitions:
+  models.APIResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  models.CreateFilterRequest:
+    properties:
+      options:
+        $ref: '#/definitions/models.FilterOptions'
+    type: object
+  models.CreateFilterResponse:
+    properties:
+      createdAt:
+        type: string
+      filterKey:
+        type: string
+      options:
+        $ref: '#/definitions/models.FilterOptions'
+    type: object
+  models.FilterOptions:
+    properties:
+      keyword:
+        type: string
+      pathPrefix:
+        type: string
+      repository:
+        type: string
+    type: object
+  models.FilterUpdateRequest:
+    properties:
+      keyword:
+        type: string
+      pathPrefix:
+        type: string
+      repository:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: AT Protocol PubSub
+    url: https://github.com/JWhist/AT_Proto_PubSub
+  description: |-
+    A real-time AT Protocol firehose filtering and subscription service.
+
+    ## Overview
+    This API provides filtering and subscription capabilities for the AT Protocol firehose, allowing clients to:
+    - Create filtered subscriptions for specific repositories, content types, or keywords
+    - Subscribe to real-time events via WebSocket connections
+    - Monitor subscription statistics and health
+
+    ## Safety Features
+    - **Filter Validation**: All filters must specify at least one criteria to prevent forwarding the entire firehose
+    - **Enhanced Timestamps**: All forwarded events include detailed timing metadata for observability
+    - **Thread Safety**: All operations are thread-safe and tested with race condition detection
+
+    ## WebSocket Protocol
+    Connect to `/ws/{filterKey}` to receive real-time filtered events with ping/pong support.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  title: AT Protocol PubSub API
+  version: 1.0.0
+paths:
+  /:
+    get:
+      consumes:
+      - application/json
+      description: Get basic information about the API and available endpoints
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API information retrieved successfully
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+      summary: API Information
+      tags:
+      - Health
+  /api/filters:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the current global filter settings
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Current filters retrieved successfully
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+      summary: Get Current Filters
+      tags:
+      - Filters
+  /api/filters/create:
+    post:
+      consumes:
+      - application/json
+      description: Create a new filter subscription for receiving real-time events.
+        At least one filter criteria must be provided to prevent forwarding the entire
+        firehose.
+      parameters:
+      - description: Filter creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateFilterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Filter subscription created successfully
+          schema:
+            $ref: '#/definitions/models.CreateFilterResponse'
+        "400":
+          description: Invalid request - no filter criteria provided
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+      summary: Create Filter Subscription
+      tags:
+      - Subscriptions
+  /api/filters/update:
+    post:
+      consumes:
+      - application/json
+      description: Update the global filter settings (legacy endpoint)
+      parameters:
+      - description: Filter update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.FilterUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Filters updated successfully
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+      summary: Update Global Filters
+      tags:
+      - Filters
+  /api/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get subscription manager statistics and metrics
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Statistics retrieved successfully
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+      summary: Get Statistics
+      tags:
+      - Subscriptions
+  /api/status:
+    get:
+      consumes:
+      - application/json
+      description: Get the current server status and active filters
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Server status retrieved successfully
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+      summary: Server Status
+      tags:
+      - Health
+  /api/subscriptions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all active filter subscriptions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Subscriptions retrieved successfully
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+      summary: Get All Subscriptions
+      tags:
+      - Subscriptions
+  /api/subscriptions/{filterKey}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific filter subscription
+      parameters:
+      - description: The unique filter key for the subscription
+        in: path
+        name: filterKey
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Subscription details retrieved successfully
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+        "404":
+          description: Subscription not found
+          schema:
+            $ref: '#/definitions/models.APIResponse'
+      summary: Get Subscription Details
+      tags:
+      - Subscriptions
+  /ws/{filterKey}:
+    get:
+      description: Establish a WebSocket connection to receive real-time filtered
+        events. Connect to /ws/{filterKey} with the filter key obtained from creating
+        a subscription.
+      parameters:
+      - description: The unique filter key obtained from creating a subscription
+        in: path
+        name: filterKey
+        required: true
+        type: string
+      responses:
+        "101":
+          description: WebSocket connection established
+        "400":
+          description: Filter key required or invalid
+        "404":
+          description: Invalid filter key
+      summary: WebSocket Connection
+      tags:
+      - WebSocket
+swagger: "2.0"
+tags:
+- description: Server health and status endpoints
+  name: Health
+- description: Filter configuration and management
+  name: Filters
+- description: Subscription management and statistics
+  name: Subscriptions
+- description: Real-time WebSocket connections
+  name: WebSocket

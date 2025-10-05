@@ -6,9 +6,12 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	httpSwagger "github.com/swaggo/http-swagger"
 
 	"github.com/JWhist/AT_Proto_PubSub/internal/firehose"
 	"github.com/JWhist/AT_Proto_PubSub/internal/subscription"
+
+	_ "github.com/JWhist/AT_Proto_PubSub/docs" // Import generated docs
 )
 
 // Server handles HTTP API requests for filter management
@@ -47,6 +50,9 @@ func NewServer(firehoseClient *firehose.Client, port string) *Server {
 	mux.HandleFunc("/api/status", apiServer.handleStatus)
 	mux.HandleFunc("/ws/", apiServer.handleWebSocket)
 	mux.HandleFunc("/", apiServer.handleRoot)
+
+	// Register Swagger UI
+	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 
 	return apiServer
 }
