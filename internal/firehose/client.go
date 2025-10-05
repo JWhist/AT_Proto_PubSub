@@ -1,18 +1,20 @@
 package firehose
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/events"
 	"github.com/bluesky-social/indigo/events/schedulers/sequential"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/gorilla/websocket"
+	carv2 "github.com/ipld/go-car/v2"
 
 	"github.com/JWhist/AT_Proto_PubSub/internal/config"
 	"github.com/JWhist/AT_Proto_PubSub/internal/models"
@@ -129,16 +131,54 @@ func (c *Client) handleRepoCommit(evt *atproto.SyncSubscribeRepos_Commit) error 
 		Kind: "commit",
 	}
 
-	// Convert operations
-	for _, op := range evt.Ops {
-		atOp := models.ATOperation{
-			Action: op.Action,
-			Path:   op.Path,
+	// Process CAR blocks to extract records
+	if len(evt.Blocks) > 0 {
+		// Decode CAR blocks to extract records
+		records, err := c.decodeCarBlocks(evt.Blocks)
+		if err != nil {
+			// Silently continue on CAR decode errors
+			records = make(map[string]interface{})
 		}
-		if op.Cid != nil {
-			atOp.Cid = op.Cid.String()
+
+		// Convert operations with decoded records
+		for _, op := range evt.Ops {
+			atOp := models.ATOperation{
+				Action: op.Action,
+				Path:   op.Path,
+			}
+			if op.Cid != nil {
+				atOp.Cid = op.Cid.String()
+
+				// Try to find the corresponding record for this CID
+				if record, exists := records[op.Cid.String()]; exists {
+					atOp.Record = record
+				}
+			}
+
+			// Extract collection from path (e.g., "app.bsky.feed.post/abc123" -> "app.bsky.feed.post")
+			pathParts := strings.Split(op.Path, "/")
+			if len(pathParts) > 0 {
+				atOp.Collection = pathParts[0]
+				if len(pathParts) > 1 {
+					atOp.Rkey = pathParts[1]
+				}
+			}
+
+			atEvent.Ops = append(atEvent.Ops, atOp)
 		}
-		atEvent.Ops = append(atEvent.Ops, atOp)
+	} else {
+		// Fallback for operations without blocks
+		for _, op := range evt.Ops {
+			atOp := models.ATOperation{
+				Action: op.Action,
+				Path:   op.Path,
+			}
+			if op.Cid != nil {
+				atOp.Cid = op.Cid.String()
+			}
+
+			atEvent.Ops = append(atEvent.Ops, atOp)
+		}
 	}
 
 	// Send event to callback (subscription manager) if set
@@ -149,6 +189,67 @@ func (c *Client) handleRepoCommit(evt *atproto.SyncSubscribeRepos_Commit) error 
 	// Process the event with legacy filtering (for backward compatibility)
 	c.handleEvent(atEvent)
 	return nil
+}
+
+// decodeCarBlocks decodes CAR (Content Addressable Archive) blocks and extracts records
+func (c *Client) decodeCarBlocks(carData []byte) (map[string]interface{}, error) {
+	records := make(map[string]interface{})
+
+	// Create a reader from the CAR data
+	carReader := bytes.NewReader(carData)
+
+	// Read the CAR file
+	blockReader, err := carv2.NewBlockReader(carReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CAR block reader: %w", err)
+	}
+
+	// Iterate through all blocks in the CAR file
+	for {
+		block, err := blockReader.Next()
+		if err != nil {
+			// End of blocks
+			break
+		}
+
+		// Try to decode the block data as CBOR
+		var record interface{}
+		if err := cbor.Unmarshal(block.RawData(), &record); err != nil {
+			// Skip blocks that aren't valid CBOR records
+			continue
+		}
+
+		// Convert CBOR map to string-keyed map for easier handling
+		convertedRecord := c.convertCBORToStringMap(record)
+
+		// Store the record using the CID as the key
+		cidStr := block.Cid().String()
+		records[cidStr] = convertedRecord
+	}
+
+	return records, nil
+}
+
+// convertCBORToStringMap converts CBOR interface{} maps to string-keyed maps
+func (c *Client) convertCBORToStringMap(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[interface{}]interface{}:
+		result := make(map[string]interface{})
+		for key, value := range v {
+			if keyStr, ok := key.(string); ok {
+				result[keyStr] = c.convertCBORToStringMap(value)
+			}
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, item := range v {
+			result[i] = c.convertCBORToStringMap(item)
+		}
+		return result
+	default:
+		return v
+	}
 }
 
 // handleEvent processes an AT Protocol event
@@ -178,7 +279,7 @@ func (c *Client) handleEvent(event models.ATEvent) {
 			}
 
 			if c.matchesFilter(op, currentFilters) {
-				c.logEvent(event, op)
+				// Event matches filter - silently continue processing
 			}
 		}
 	}
@@ -230,54 +331,6 @@ func (c *Client) matchesFilter(op models.ATOperation, filters models.FilterOptio
 	}
 
 	return false
-}
-
-// logEvent logs a matching event to the console
-func (c *Client) logEvent(event models.ATEvent, op models.ATOperation) {
-	timestamp := time.Now().Format(time.RFC3339)
-
-	fmt.Println(strings.Repeat("=", 80))
-	fmt.Printf("[%s] %s event\n", timestamp, strings.ToUpper(op.Action))
-	fmt.Println(strings.Repeat("-", 80))
-	fmt.Printf("Repository: %s\n", event.Did)
-	fmt.Printf("Collection: %s\n", op.Collection)
-	fmt.Printf("Record Key: %s\n", op.Rkey)
-	fmt.Printf("URI: at://%s/%s/%s\n", event.Did, op.Collection, op.Rkey)
-
-	if op.Record != nil {
-		// Convert record to JSON and then to RecordContent for better parsing
-		recordBytes, err := json.Marshal(op.Record)
-		if err == nil {
-			var record models.RecordContent
-			if err := json.Unmarshal(recordBytes, &record); err == nil {
-				// Log text content
-				text := record.Text
-				if text == "" {
-					text = record.Message
-				}
-				if text == "" {
-					text = record.Content
-				}
-				if text != "" {
-					fmt.Printf("Text: %s\n", text)
-				}
-
-				// Log other relevant fields
-				if record.Reply != nil {
-					replyJSON, _ := json.Marshal(record.Reply)
-					fmt.Printf("Reply to: %s\n", string(replyJSON))
-				}
-
-				if len(record.Langs) > 0 {
-					langsJSON, _ := json.Marshal(record.Langs)
-					fmt.Printf("Languages: %s\n", string(langsJSON))
-				}
-			}
-		}
-	}
-
-	fmt.Println(strings.Repeat("=", 80))
-	fmt.Println()
 }
 
 // getFilterString returns "ALL" if filter is empty, otherwise returns the filter value
