@@ -61,14 +61,6 @@ func ParseCARMessage(data []byte) (*ATProtoEvent, error) {
 				Repo: repo,
 			}
 
-			// Debug: Print all keys in the first few commit blocks
-			fmt.Printf("🔍 Found commit block with repo: %s\n", repo)
-			fmt.Printf("🔍 All keys in commit block: ")
-			for key := range cborData {
-				fmt.Printf("%s ", key)
-			}
-			fmt.Printf("\n")
-
 			// Extract other fields
 			if rev, ok := cborData["rev"].(string); ok {
 				event.Rev = rev
@@ -86,12 +78,6 @@ func ParseCARMessage(data []byte) (*ATProtoEvent, error) {
 				for i, op := range ops {
 					if opMap, ok := op.(map[string]interface{}); ok {
 						operation := Operation{}
-
-						fmt.Printf("🔍 Operation %d keys: ", i)
-						for key := range opMap {
-							fmt.Printf("%s ", key)
-						}
-						fmt.Printf("\n")
 
 						if action, ok := opMap["action"].(string); ok {
 							operation.Action = action
