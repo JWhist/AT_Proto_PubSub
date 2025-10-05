@@ -1,0 +1,49 @@
+# AT Protocol PubSub Server Configuration - Docker Optimized
+
+# Server configuration
+server:
+  # Port to listen on (can be overridden by SERVER_PORT env var)
+  port: "8080"
+  # Host to bind to - 0.0.0.0 for Docker containers to accept external connections
+  host: "0.0.0.0"
+  # Maximum number of concurrent WebSocket connections
+  max_connections: 1000
+  # Graceful shutdown timeout
+  shutdown_timeout: "10s"
+  
+  # CORS configuration
+  cors:
+    # Allow all origins for containerized deployments
+    allow_all_origins: true
+    # Specific allowed origins (configure as needed)
+    allowed_origins: []
+    # Allowed HTTP methods
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    # Allowed headers
+    allowed_headers: ["*"]
+
+# AT Protocol firehose configuration
+firehose:
+  # Firehose WebSocket URL
+  url: "wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos"
+  # Delay between reconnection attempts
+  reconnect_delay: "5s"
+  # Maximum number of reconnection attempts (-1 for unlimited)
+  max_reconnects: 10
+  # WebSocket read timeout
+  read_timeout: "60s"
+  # WebSocket write timeout
+  write_timeout: "10s"
+  # Ping interval for keep-alive
+  ping_interval: "30s"
+
+# Logging configuration
+logging:
+  # Log level: debug, info, warn, error
+  level: "info"
+  # Log format: json is better for containerized environments
+  format: "json"
+  # Log output: stdout for container logging
+  output: "stdout"
+  # Use structured logging for better container log parsing
+  structured: true

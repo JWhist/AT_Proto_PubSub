@@ -1,0 +1,27 @@
+# Load-Balanced Configuration for AT Protocol PubSub Server
+
+server:
+  port: "8080"
+  host: "0.0.0.0"
+  max_connections: 2500   # Moderate limit per instance
+  shutdown_timeout: "30s"
+  
+  cors:
+    allow_all_origins: true  # Allow load balancer and clients
+    allowed_origins: []
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+
+firehose:
+  url: "wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos"
+  reconnect_delay: "5s"
+  max_reconnects: 25
+  read_timeout: "90s"
+  write_timeout: "20s"
+  ping_interval: "30s"
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  structured: true

@@ -1,0 +1,30 @@
+# Production Configuration for AT Protocol PubSub Server
+
+server:
+  port: "8080"
+  host: "0.0.0.0"
+  max_connections: 5000  # Higher limit for production
+  shutdown_timeout: "30s"  # Longer timeout for graceful shutdown
+  
+  cors:
+    allow_all_origins: false  # More restrictive CORS for production
+    allowed_origins: 
+      - "https://yourdomain.com"
+      - "https://app.yourdomain.com"
+      - "https://dashboard.yourdomain.com"
+    allowed_methods: ["GET", "POST", "OPTIONS"]
+    allowed_headers: ["Authorization", "Content-Type", "X-Requested-With"]
+
+firehose:
+  url: "wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos"
+  reconnect_delay: "10s"  # Longer delay for production stability
+  max_reconnects: 50      # More retries for production
+  read_timeout: "120s"    # Longer timeouts for production
+  write_timeout: "30s"
+  ping_interval: "45s"
+
+logging:
+  level: "warn"          # Less verbose logging for production
+  format: "json"         # Structured logging for production
+  output: "stdout"       # Container-friendly logging
+  structured: true

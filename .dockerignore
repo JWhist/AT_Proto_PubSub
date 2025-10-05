@@ -13,6 +13,9 @@ test_websocket_client.go
 # Ignore build artifacts
 at-proto-pubsub
 *.exe
+*.dll
+*.so
+*.dylib
 
 # Ignore development files
 .vscode
@@ -31,3 +34,13 @@ temp/
 
 # Ignore logs
 *.log
+
+# Ignore local development configurations
+config-test.yaml
+config-local.yaml
+config-dev.yaml
+.env
+.env.local
+
+# Ignore CI/CD files
+.github/

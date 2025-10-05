@@ -1,0 +1,27 @@
+# High-Capacity Configuration for AT Protocol PubSub Server
+
+server:
+  port: "8080"
+  host: "0.0.0.0"
+  max_connections: 10000  # Very high limit for scale
+  shutdown_timeout: "60s"  # Extended timeout for many connections
+  
+  cors:
+    allow_all_origins: true
+    allowed_origins: []
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+
+firehose:
+  url: "wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos"
+  reconnect_delay: "5s"   # Quick reconnection for high throughput
+  max_reconnects: 100     # Many retries for resilience
+  read_timeout: "180s"    # Extended timeouts for high load
+  write_timeout: "60s"
+  ping_interval: "30s"
+
+logging:
+  level: "error"         # Minimal logging for performance
+  format: "json"
+  output: "stdout"
+  structured: true
