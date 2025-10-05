@@ -19,7 +19,7 @@ import (
 // @description
 // @description ## Overview
 // @description This API provides filtering and subscription capabilities for the AT Protocol firehose, allowing clients to:
-// @description - Create filtered subscriptions for specific repositories, content types, or keywords
+// @description - Create filtered subscriptions for specific repositories, content types, or keywords (comma-separated)
 // @description - Subscribe to real-time events via WebSocket connections
 // @description - Monitor subscription statistics and health
 // @description
@@ -80,7 +80,7 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 			"filters": map[string]string{
 				"repository": "Filter by repository DID (e.g., 'did:plc:abc123')",
 				"pathPrefix": "Filter by operation path prefix (e.g., 'app.bsky.feed.post')",
-				"keyword":    "Filter by keyword in text content",
+				"keyword":    "Filter by keywords in text content (comma-separated, e.g., 'hello,world,test')",
 			},
 			"requirements": []string{
 				"At least one filter criteria (repository, pathPrefix, or keyword) must be provided",

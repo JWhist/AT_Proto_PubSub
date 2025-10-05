@@ -25,10 +25,14 @@ definitions:
   models.FilterOptions:
     properties:
       keyword:
+        description: Comma-separated list of keywords (e.g., "hello,world,test")
+        example: hello,world,test
         type: string
       pathPrefix:
+        example: app.bsky.feed.post
         type: string
       repository:
+        example: did:plc:example123
         type: string
     type: object
   models.FilterUpdateRequest:
@@ -50,7 +54,7 @@ info:
 
     ## Overview
     This API provides filtering and subscription capabilities for the AT Protocol firehose, allowing clients to:
-    - Create filtered subscriptions for specific repositories, content types, or keywords
+    - Create filtered subscriptions for specific repositories, content types, or keywords (comma-separated)
     - Subscribe to real-time events via WebSocket connections
     - Monitor subscription statistics and health
 

@@ -4,9 +4,9 @@ import "time"
 
 // FilterOptions represents the filter options that can be set via API
 type FilterOptions struct {
-	Repository string `json:"repository"`
-	PathPrefix string `json:"pathPrefix"`
-	Keyword    string `json:"keyword"`
+	Repository string `json:"repository" example:"did:plc:example123" description:"Filter by repository DID (empty string means all repositories)"`
+	PathPrefix string `json:"pathPrefix" example:"app.bsky.feed.post" description:"Filter by operation path prefix (empty string means all paths)"`
+	Keyword    string `json:"keyword" example:"hello,world,test" description:"Filter by keywords in text content (comma-separated, empty string means all content)"` // Comma-separated list of keywords (e.g., "hello,world,test")
 }
 
 // APIResponse represents a standard API response

@@ -217,6 +217,60 @@ func TestMatchesFilter(t *testing.T) {
 			options:  models.FilterOptions{},
 			expected: false, // Changed from true to false due to safety check
 		},
+		{
+			name: "Multiple keywords - first matches",
+			event: &models.ATEvent{
+				Did: "did:plc:test123",
+				Ops: []models.ATOperation{
+					{
+						Path: "app.bsky.feed.post/123",
+						Record: map[string]interface{}{
+							"text": "This is a test message",
+						},
+					},
+				},
+			},
+			options: models.FilterOptions{
+				Keyword: "test,hello,world",
+			},
+			expected: true,
+		},
+		{
+			name: "Multiple keywords - second matches",
+			event: &models.ATEvent{
+				Did: "did:plc:test123",
+				Ops: []models.ATOperation{
+					{
+						Path: "app.bsky.feed.post/123",
+						Record: map[string]interface{}{
+							"text": "Hello there, how are you?",
+						},
+					},
+				},
+			},
+			options: models.FilterOptions{
+				Keyword: "test,hello,world",
+			},
+			expected: true,
+		},
+		{
+			name: "Multiple keywords - none match",
+			event: &models.ATEvent{
+				Did: "did:plc:test123",
+				Ops: []models.ATOperation{
+					{
+						Path: "app.bsky.feed.post/123",
+						Record: map[string]interface{}{
+							"text": "This is a different message",
+						},
+					},
+				},
+			},
+			options: models.FilterOptions{
+				Keyword: "test,hello,world",
+			},
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -299,6 +353,111 @@ func TestRecordContainsKeyword(t *testing.T) {
 			result := manager.recordContainsKeyword(tt.record, tt.keyword)
 			if result != tt.expected {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestRecordContainsKeywords(t *testing.T) {
+	manager := NewManager()
+
+	tests := []struct {
+		name     string
+		record   interface{}
+		keywords string
+		expected bool
+	}{
+		{
+			name: "Single keyword match",
+			record: map[string]interface{}{
+				"text": "This is a test message",
+			},
+			keywords: "test",
+			expected: true,
+		},
+		{
+			name: "Multiple keywords - first matches",
+			record: map[string]interface{}{
+				"text": "This is a test message",
+			},
+			keywords: "test,hello,world",
+			expected: true,
+		},
+		{
+			name: "Multiple keywords - second matches",
+			record: map[string]interface{}{
+				"text": "Hello there, how are you?",
+			},
+			keywords: "test,hello,world",
+			expected: true,
+		},
+		{
+			name: "Multiple keywords - last matches",
+			record: map[string]interface{}{
+				"text": "World peace is important",
+			},
+			keywords: "test,hello,world",
+			expected: true,
+		},
+		{
+			name: "Multiple keywords - none match",
+			record: map[string]interface{}{
+				"text": "This is a different message",
+			},
+			keywords: "test,hello,world",
+			expected: false,
+		},
+		{
+			name: "Keywords with spaces",
+			record: map[string]interface{}{
+				"text": "Hello there, how are you?",
+			},
+			keywords: "test, hello , world",
+			expected: true,
+		},
+		{
+			name: "Empty keywords string",
+			record: map[string]interface{}{
+				"text": "This is a test message",
+			},
+			keywords: "",
+			expected: false,
+		},
+		{
+			name: "Case insensitive match",
+			record: map[string]interface{}{
+				"text": "This is a TEST message",
+			},
+			keywords: "test,hello,world",
+			expected: true,
+		},
+		{
+			name: "Partial word match",
+			record: map[string]interface{}{
+				"text": "This is testing something",
+			},
+			keywords: "test,hello,world",
+			expected: true,
+		},
+		{
+			name:     "Empty record",
+			record:   map[string]interface{}{},
+			keywords: "test,hello,world",
+			expected: false,
+		},
+		{
+			name:     "Nil record",
+			record:   nil,
+			keywords: "test,hello,world",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := manager.recordContainsKeywords(tt.record, tt.keywords)
+			if result != tt.expected {
+				t.Errorf("Expected %v, got %v for keywords: %s", tt.expected, result, tt.keywords)
 			}
 		})
 	}

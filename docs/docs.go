@@ -324,13 +324,17 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "keyword": {
-                    "type": "string"
+                    "description": "Comma-separated list of keywords (e.g., \"hello,world,test\")",
+                    "type": "string",
+                    "example": "hello,world,test"
                 },
                 "pathPrefix": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "app.bsky.feed.post"
                 },
                 "repository": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "did:plc:example123"
                 }
             }
         },
@@ -376,7 +380,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "AT Protocol PubSub API",
-	Description:      "A real-time AT Protocol firehose filtering and subscription service.\n\n## Overview\nThis API provides filtering and subscription capabilities for the AT Protocol firehose, allowing clients to:\n- Create filtered subscriptions for specific repositories, content types, or keywords\n- Subscribe to real-time events via WebSocket connections\n- Monitor subscription statistics and health\n\n## Safety Features\n- **Filter Validation**: All filters must specify at least one criteria to prevent forwarding the entire firehose\n- **Enhanced Timestamps**: All forwarded events include detailed timing metadata for observability\n- **Thread Safety**: All operations are thread-safe and tested with race condition detection\n\n## WebSocket Protocol\nConnect to `/ws/{filterKey}` to receive real-time filtered events with ping/pong support.",
+	Description:      "A real-time AT Protocol firehose filtering and subscription service.\n\n## Overview\nThis API provides filtering and subscription capabilities for the AT Protocol firehose, allowing clients to:\n- Create filtered subscriptions for specific repositories, content types, or keywords (comma-separated)\n- Subscribe to real-time events via WebSocket connections\n- Monitor subscription statistics and health\n\n## Safety Features\n- **Filter Validation**: All filters must specify at least one criteria to prevent forwarding the entire firehose\n- **Enhanced Timestamps**: All forwarded events include detailed timing metadata for observability\n- **Thread Safety**: All operations are thread-safe and tested with race condition detection\n\n## WebSocket Protocol\nConnect to `/ws/{filterKey}` to receive real-time filtered events with ping/pong support.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

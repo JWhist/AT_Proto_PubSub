@@ -200,7 +200,7 @@ func (m *Manager) matchesFilter(event *models.ATEvent, options models.FilterOpti
 	if options.Keyword != "" {
 		hasMatchingKeyword := false
 		for _, op := range event.Ops {
-			if m.recordContainsKeyword(op.Record, options.Keyword) {
+			if m.recordContainsKeywords(op.Record, options.Keyword) {
 				hasMatchingKeyword = true
 				break
 			}
@@ -213,9 +213,9 @@ func (m *Manager) matchesFilter(event *models.ATEvent, options models.FilterOpti
 	return true
 }
 
-// recordContainsKeyword checks if a record contains the specified keyword
-func (m *Manager) recordContainsKeyword(record interface{}, keyword string) bool {
-	if record == nil {
+// recordContainsKeywords checks if a record contains any of the specified keywords (comma-separated)
+func (m *Manager) recordContainsKeywords(record interface{}, keywords string) bool {
+	if record == nil || keywords == "" {
 		return false
 	}
 
@@ -243,7 +243,23 @@ func (m *Manager) recordContainsKeyword(record interface{}, keyword string) bool
 		return false
 	}
 
-	return strings.Contains(strings.ToLower(text), strings.ToLower(keyword))
+	// Split keywords by comma and check for any match
+	keywordList := strings.Split(keywords, ",")
+	textLower := strings.ToLower(text)
+
+	for _, keyword := range keywordList {
+		keyword = strings.TrimSpace(keyword) // Remove any surrounding whitespace
+		if keyword != "" && strings.Contains(textLower, strings.ToLower(keyword)) {
+			return true // Return true if any keyword matches
+		}
+	}
+
+	return false
+}
+
+// recordContainsKeyword checks if a record contains the specified keyword (kept for compatibility)
+func (m *Manager) recordContainsKeyword(record interface{}, keyword string) bool {
+	return m.recordContainsKeywords(record, keyword)
 }
 
 // broadcastToSubscription sends an event to all connections in a subscription
