@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"atp-test/internal/firehose"
-	"atp-test/internal/models"
+	"github.com/JWhist/AT_Proto_PubSub/internal/firehose"
+	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
 
 func TestGetFilterString(t *testing.T) {

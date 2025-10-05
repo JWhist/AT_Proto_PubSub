@@ -3,7 +3,7 @@ package firehose
 import (
 	"testing"
 
-	"atp-test/internal/models"
+	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
 
 // MockEventCallback is a test implementation of EventCallback

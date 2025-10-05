@@ -14,7 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/events/schedulers/sequential"
 	"github.com/gorilla/websocket"
 
-	"atp-test/internal/models"
+	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
 
 // Client handles the AT Protocol firehose connection and filtering

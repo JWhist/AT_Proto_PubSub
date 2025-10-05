@@ -1,4 +1,4 @@
-module atp-test
+module github.com/JWhist/AT_Proto_PubSub
 
 go 1.24.5
 

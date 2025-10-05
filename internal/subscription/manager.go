@@ -12,7 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"atp-test/internal/models"
+	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
 
 // Manager handles filter subscriptions and WebSocket connections

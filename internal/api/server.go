@@ -7,8 +7,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"atp-test/internal/firehose"
-	"atp-test/internal/subscription"
+	"github.com/JWhist/AT_Proto_PubSub/internal/firehose"
+	"github.com/JWhist/AT_Proto_PubSub/internal/subscription"
 )
 
 // Server handles HTTP API requests for filter management

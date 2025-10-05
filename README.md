@@ -22,8 +22,8 @@ A WebSocket-based subscription system that connects to the AT Protocol firehose 
 
 ```bash
 # Clone the repository (if needed)
-git clone <repository-url>
-cd atp-test
+git clone https://github.com/JWhist/AT_Proto_PubSub.git
+cd AT_Proto_PubSub
 
 # Download dependencies
 go mod tidy
@@ -33,7 +33,7 @@ go mod tidy
 
 ```bash
 # Build the executable
-go build -o atp-test
+go build -o at-proto-pubsub
 
 # Or run directly
 go run .
@@ -48,7 +48,7 @@ go run .
 go run .
 
 # Or run the compiled binary
-./atp-test
+./at-proto-pubsub
 ```
 
 The server will start:
@@ -441,14 +441,14 @@ Set debug level logging by modifying the log configuration in `main.go`.
 FROM golang:1.24-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN go mod tidy && go build -o atp-test
+RUN go mod tidy && go build -o at-proto-pubsub
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
-COPY --from=builder /app/atp-test .
+COPY --from=builder /app/at-proto-pubsub .
 EXPOSE 8080
-CMD ["./atp-test"]
+CMD ["./at-proto-pubsub"]
 ```
 
 ### Production Considerations

@@ -9,8 +9,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"atp-test/internal/models"
-	"atp-test/internal/subscription"
+	"github.com/JWhist/AT_Proto_PubSub/internal/models"
+	"github.com/JWhist/AT_Proto_PubSub/internal/subscription"
 )
 
 func TestHandleCreateFilter(t *testing.T) {

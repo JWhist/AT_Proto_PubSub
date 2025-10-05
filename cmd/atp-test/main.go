@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"atp-test/internal/api"
-	"atp-test/internal/firehose"
+	"github.com/JWhist/AT_Proto_PubSub/internal/api"
+	"github.com/JWhist/AT_Proto_PubSub/internal/firehose"
 )
 
 func main() {

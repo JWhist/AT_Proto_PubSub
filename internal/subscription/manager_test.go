@@ -3,7 +3,7 @@ package subscription
 import (
 	"testing"
 
-	"atp-test/internal/models"
+	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
 
 func TestNewManager(t *testing.T) {
