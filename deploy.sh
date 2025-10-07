@@ -9,6 +9,7 @@ VPS=$2
 REMOTE_DIR=$3
 IMAGE_NAME="${APP_NAME}:latest"
 TAR_FILE="${APP_NAME}.tar.gz"
+COMPOSE_FILE="compose.yaml"
 
 # Step 1: Build Docker image locally
 echo "Building Docker image ${IMAGE_NAME}..."
@@ -18,11 +19,11 @@ docker build -t "${IMAGE_NAME}" .
 echo "Saving Docker image to ${TAR_FILE}..."
 docker save "${IMAGE_NAME}" | gzip > "${TAR_FILE}"
 
-# Step 3: Copy image tarball to VPS
-echo "Copying image to ${VPS}:${REMOTE_DIR}..."
-scp "${TAR_FILE}" "${VPS}:${REMOTE_DIR}/"
+# Step 3: Copy image tarball and compose.yaml to VPS
+echo "Copying image and compose.yaml to ${VPS}:${REMOTE_DIR}..."
+scp "${TAR_FILE}" "${COMPOSE_FILE}" "${VPS}:${REMOTE_DIR}/"
 
-# Step 4: Load image on VPS and remove tarball
+# Step 4: Load image on VPS and clean up tarball
 echo "Loading image on VPS..."
 ssh "${VPS}" bash -c "'
 cd ${REMOTE_DIR}

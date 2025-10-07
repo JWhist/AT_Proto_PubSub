@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  at-proto-pubsub:
+    build: .
+    container_name: at-proto-pubsub-dev
+    ports:
+      - "8080:8080"    # exposed only locally
+    environment:
+      - CONFIG_FILE=/app/config-docker.yaml
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

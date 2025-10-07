@@ -32,6 +32,14 @@ run: docker-build
 run-local:
 	go run $(MAIN_PATH)
 
+# Run development environment
+.PHONY: dev
+dev: compose-dev-up
+
+# Run production environment
+.PHONY: prod
+prod: compose-prod-up
+
 # Run tests
 .PHONY: test
 test:
@@ -74,6 +82,48 @@ docker-clean:
 docker-logs:
 	docker logs -f $(CONTAINER_NAME)
 
+# Docker Compose commands for development
+.PHONY: compose-dev-up
+compose-dev-up:
+	docker compose -f docker-compose.dev.yml up --build
+
+.PHONY: compose-dev-up-detached
+compose-dev-up-detached:
+	docker compose -f docker-compose.dev.yml up --build -d
+
+.PHONY: compose-dev-down
+compose-dev-down:
+	docker compose -f docker-compose.dev.yml down
+
+.PHONY: compose-dev-logs
+compose-dev-logs:
+	docker compose -f docker-compose.dev.yml logs -f
+
+.PHONY: compose-dev-restart
+compose-dev-restart:
+	docker compose -f docker-compose.dev.yml restart
+
+# Docker Compose commands for production
+.PHONY: compose-prod-up
+compose-prod-up:
+	docker compose -f docker-compose.prod.yml up --build
+
+.PHONY: compose-prod-up-detached
+compose-prod-up-detached:
+	docker compose -f docker-compose.prod.yml up --build -d
+
+.PHONY: compose-prod-down
+compose-prod-down:
+	docker compose -f docker-compose.prod.yml down
+
+.PHONY: compose-prod-logs
+compose-prod-logs:
+	docker compose -f docker-compose.prod.yml logs -f
+
+.PHONY: compose-prod-restart
+compose-prod-restart:
+	docker compose -f docker-compose.prod.yml restart
+
 # Run the example
 .PHONY: example
 example:
@@ -103,6 +153,8 @@ help:
 	@echo "  build-prod          - Build optimized binary for production"
 	@echo "  run                 - Run the application with Docker"
 	@echo "  run-local           - Run the application locally (without Docker)"
+	@echo "  dev                 - Start development environment (shortcut for compose-dev-up)"
+	@echo "  prod                - Start production environment (shortcut for compose-prod-up)"
 	@echo "  test                - Run tests"
 	@echo "  example             - Run the WebSocket test client"
 	@echo "  clean               - Clean build artifacts"
@@ -110,12 +162,33 @@ help:
 	@echo "  lint                - Run linter"
 	@echo "  swagger             - Generate Swagger API documentation"
 	@echo "  swagger-install     - Install Swagger tools"
+	@echo ""
+	@echo "Docker commands:"
 	@echo "  docker-build        - Build Docker image"
 	@echo "  docker-run          - Build and run with Docker (foreground)"
 	@echo "  docker-run-detached - Build and run with Docker (background)"
 	@echo "  docker-stop         - Stop Docker container"
 	@echo "  docker-clean        - Stop and remove Docker container and image"
 	@echo "  docker-logs         - Show Docker container logs"
+	@echo ""
+	@echo "Docker Compose (Development):"
+	@echo "  compose-dev-up      - Start development environment (foreground)"
+	@echo "  compose-dev-up-detached - Start development environment (background)"
+	@echo "  compose-dev-down    - Stop development environment"
+	@echo "  compose-dev-logs    - Show development logs"
+	@echo "  compose-dev-restart - Restart development services"
+	@echo ""
+	@echo "Docker Compose (Production):"
+	@echo "  compose-prod-up     - Start production environment (foreground)"
+	@echo "  compose-prod-up-detached - Start production environment (background)"
+	@echo "  compose-prod-down   - Stop production environment"
+	@echo "  compose-prod-logs   - Show production logs"
+	@echo "  compose-prod-restart - Restart production services"
+	@echo ""
+	@echo "Cross-compilation:"
+	@echo "  build-linux         - Build for Linux"
+	@echo "  build-windows       - Build for Windows"
+	@echo "  build-mac           - Build for macOS"
 	@echo "  build-all           - Build binaries for all platforms"
 	@echo "  help                - Show this help"
 
