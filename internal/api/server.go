@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -49,7 +50,6 @@ func (s *Server) corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if len(s.config.Server.CORS.AllowedHeaders) > 0 {
 			w.Header().Set("Access-Control-Allow-Headers", strings.Join(s.config.Server.CORS.AllowedHeaders, ", "))
 		}
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		// Handle preflight requests
 		if r.Method == "OPTIONS" {
@@ -101,7 +101,10 @@ func NewServerWithConfig(firehoseClient *firehose.Client, cfg *config.Config) *S
 			Handler: mux,
 		},
 		upgrader: websocket.Upgrader{
-			CheckOrigin: checkOrigin,
+			CheckOrigin:      checkOrigin,
+			HandshakeTimeout: 45 * time.Second,
+			ReadBufferSize:   1024,
+			WriteBufferSize:  1024,
 		},
 		config: cfg,
 	}

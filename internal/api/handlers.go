@@ -430,6 +430,26 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set connection timeouts and limits
+	const (
+		writeWait      = 10 * time.Second    // Time allowed to write a message
+		pongWait       = 60 * time.Second    // Time allowed to read the next pong message
+		pingPeriod     = (pongWait * 9) / 10 // Send pings to peer with this period (must be less than pongWait)
+		maxMessageSize = 512                 // Maximum message size allowed
+	)
+
+	// Configure connection
+	conn.SetReadLimit(maxMessageSize)
+	if err := conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		log.Printf("Failed to set read deadline: %v", err)
+	}
+	conn.SetPongHandler(func(string) error {
+		if err := conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+			log.Printf("Failed to set read deadline in pong handler: %v", err)
+		}
+		return nil
+	})
+
 	// Add connection to the subscription
 	result := s.subscriptions.AddConnectionWithResult(path, conn)
 	if !result.Success {
@@ -443,6 +463,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			Type:      "error",
 			Timestamp: time.Now(),
 			Data:      errorData,
+		}
+		if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+			log.Printf("Failed to set write deadline for error message: %v", err)
 		}
 		if err := conn.WriteJSON(errorMsg); err != nil {
 			log.Printf("Failed to write error message: %v", err)
@@ -463,69 +486,116 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"message":   "Successfully connected to filter subscription",
 		},
 	}
+	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+		log.Printf("Failed to set write deadline for welcome message: %v", err)
+	}
 	if err := conn.WriteJSON(welcomeMsg); err != nil {
 		log.Printf("Failed to send welcome message: %v", err)
 	}
 
 	log.Printf("🔌 WebSocket connected for filter %s", path[:8]+"...")
 
-	// Handle connection lifecycle
+	// Handle connection lifecycle with proper cleanup
 	defer func() {
 		s.subscriptions.RemoveConnection(path, conn)
-		if err := conn.Close(); err != nil {
+		if err := conn.Close(); err != nil && !websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
 			log.Printf("Error closing connection: %v", err)
 		}
 		log.Printf("🔌 WebSocket disconnected for filter %s", path[:8]+"...")
 	}()
 
-	// Keep connection alive and handle client messages
-	for {
-		var msg map[string]interface{}
-		if err := conn.ReadJSON(&msg); err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
-			}
-			break
-		}
+	// Start ping ticker to keep connection alive
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
 
-		// Handle ping/pong or other client messages
-		if msgType, ok := msg["type"].(string); ok {
-			switch msgType {
-			case "ping":
-				pongMsg := models.WSMessage{
-					Type:      "pong",
-					Timestamp: time.Now(),
-					Data:      map[string]string{"status": "alive"},
-				}
-				if err := conn.WriteJSON(pongMsg); err != nil {
-					log.Printf("Failed to send pong: %v", err)
-					break
-				}
-			case "get_filter":
-				// Send current filter configuration
-				subscription, exists := s.subscriptions.GetSubscription(path)
-				if exists {
-					filterMsg := models.WSMessage{
-						Type:      "filter_info",
-						Timestamp: time.Now(),
-						Data:      subscription,
-					}
-					if err := conn.WriteJSON(filterMsg); err != nil {
-						log.Printf("Failed to send filter info: %v", err)
-						break
-					}
-				}
+	// Channel to signal when read goroutine should stop
+	done := make(chan struct{})
+	defer close(done)
+
+	// Start a goroutine to handle reading messages
+	go func() {
+		defer func() {
+			select {
+			case done <- struct{}{}:
 			default:
-				// Echo unknown messages back
-				echoMsg := models.WSMessage{
-					Type:      "echo",
-					Timestamp: time.Now(),
-					Data:      msg,
+			}
+		}()
+
+		for {
+			var msg map[string]interface{}
+			if err := conn.ReadJSON(&msg); err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
+					log.Printf("WebSocket unexpected close: %v", err)
 				}
-				if err := conn.WriteJSON(echoMsg); err != nil {
-					log.Printf("Failed to echo message: %v", err)
-					break
+				return
+			}
+
+			// Handle client messages
+			if msgType, ok := msg["type"].(string); ok {
+				switch msgType {
+				case "ping":
+					pongMsg := models.WSMessage{
+						Type:      "pong",
+						Timestamp: time.Now(),
+						Data:      map[string]string{"status": "alive"},
+					}
+					if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+						log.Printf("Failed to set write deadline for pong: %v", err)
+					}
+					if err := conn.WriteJSON(pongMsg); err != nil {
+						log.Printf("Failed to send pong: %v", err)
+						return
+					}
+				case "get_filter":
+					// Send current filter configuration
+					subscription, exists := s.subscriptions.GetSubscription(path)
+					if exists {
+						filterMsg := models.WSMessage{
+							Type:      "filter_info",
+							Timestamp: time.Now(),
+							Data:      subscription,
+						}
+						if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+							log.Printf("Failed to set write deadline for filter info: %v", err)
+						}
+						if err := conn.WriteJSON(filterMsg); err != nil {
+							log.Printf("Failed to send filter info: %v", err)
+							return
+						}
+					}
+				default:
+					// Echo unknown messages back
+					echoMsg := models.WSMessage{
+						Type:      "echo",
+						Timestamp: time.Now(),
+						Data:      msg,
+					}
+					if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+						log.Printf("Failed to set write deadline for echo message: %v", err)
+					}
+					if err := conn.WriteJSON(echoMsg); err != nil {
+						log.Printf("Failed to echo message: %v", err)
+						return
+					}
 				}
+			}
+		}
+	}()
+
+	// Handle pings and connection management
+	for {
+		select {
+		case <-done:
+			// Read goroutine has finished
+			return
+		case <-ticker.C:
+			// Send ping to client
+			if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				log.Printf("Failed to set write deadline for ping: %v", err)
+			}
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Printf("Failed to send ping: %v", err)
+				return
 			}
 		}
 	}

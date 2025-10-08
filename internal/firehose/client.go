@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/events"
@@ -73,7 +74,7 @@ func (c *Client) getEventCallback() func(*models.ATEvent) {
 	return c.eventCallback
 }
 
-// Start begins the firehose connection and event processing
+// Start begins the firehose connection and event processing with auto-reconnection
 func (c *Client) Start(ctx context.Context) error {
 	filters := c.GetFilters()
 	fmt.Println("Starting AT Protocol Firehose Filter Server...")
@@ -81,32 +82,82 @@ func (c *Client) Start(ctx context.Context) error {
 	fmt.Printf("  Repository: %s\n", getFilterString(filters.Repository))
 	fmt.Printf("  Path Prefix: %s\n", getFilterString(filters.PathPrefix))
 	fmt.Printf("  Keyword: %s\n", getFilterString(filters.Keyword))
-	fmt.Println("Connecting to firehose...")
 
-	// Get firehose URL from config or use default
+	// Get configuration values with defaults
 	firehoseURL := "wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos"
-	if c.config != nil && c.config.Firehose.URL != "" {
-		firehoseURL = c.config.Firehose.URL
-	}
+	reconnectDelay := 5 * time.Second
+	maxReconnects := 10
 
-	// Connect to the AT Protocol firehose using the proper indigo library
-	dialer := websocket.DefaultDialer
-	conn, _, err := dialer.Dial(firehoseURL, nil)
-	if err != nil {
-		return fmt.Errorf("failed to connect to firehose: %w", err)
+	if c.config != nil {
+		if c.config.Firehose.URL != "" {
+			firehoseURL = c.config.Firehose.URL
+		}
+		if c.config.Firehose.ReconnectDelay > 0 {
+			reconnectDelay = c.config.Firehose.ReconnectDelay
+		}
+		if c.config.Firehose.MaxReconnects > 0 {
+			maxReconnects = c.config.Firehose.MaxReconnects
+		}
 	}
-	c.conn = conn
-	fmt.Println("✅ Successfully connected to firehose!")
 
 	// Handle graceful shutdown
 	go func() {
 		<-ctx.Done()
 		fmt.Println("\nShutting down firehose connection...")
-		if err := c.conn.Close(); err != nil {
-			fmt.Printf("Error closing connection: %v\n", err)
+		if c.conn != nil {
+			if err := c.conn.Close(); err != nil {
+				fmt.Printf("Error closing connection: %v\n", err)
+			}
 		}
 	}()
 
+	// Connection loop with auto-reconnection
+	reconnectCount := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// Attempt to connect
+		fmt.Println("Connecting to firehose...")
+		if err := c.connectAndListen(ctx, firehoseURL); err != nil {
+			reconnectCount++
+			fmt.Printf("❌ Firehose connection failed (attempt %d/%d): %v\n", reconnectCount, maxReconnects, err)
+
+			if reconnectCount >= maxReconnects {
+				return fmt.Errorf("max reconnection attempts (%d) reached, giving up", maxReconnects)
+			}
+
+			fmt.Printf("⏳ Retrying connection in %v...\n", reconnectDelay)
+
+			// Wait for reconnect delay or context cancellation
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(reconnectDelay):
+				continue
+			}
+		}
+
+		// If we get here, the connection was successful but then disconnected
+		// Reset reconnect count on successful connection
+		reconnectCount = 0
+		fmt.Println("🔄 Connection lost, attempting to reconnect...")
+	}
+}
+
+// connectAndListen establishes a connection and listens for events
+func (c *Client) connectAndListen(ctx context.Context, firehoseURL string) error {
+	// Connect to the AT Protocol firehose
+	dialer := websocket.DefaultDialer
+	conn, _, err := dialer.Dial(firehoseURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to dial firehose: %w", err)
+	}
+	c.conn = conn
+	fmt.Println("✅ Successfully connected to firehose!")
 	fmt.Println("📡 Listening for firehose messages...")
 
 	// Set up AT Protocol event callbacks
@@ -119,7 +170,19 @@ func (c *Client) Start(ctx context.Context) error {
 	// Create scheduler and handle the repo stream
 	sched := sequential.NewScheduler("atp-filter", rsc.EventHandler)
 	logger := slog.Default()
-	return events.HandleRepoStream(ctx, conn, sched, logger)
+
+	// This will block until the connection is lost or context is cancelled
+	err = events.HandleRepoStream(ctx, conn, sched, logger)
+
+	// Clean up connection
+	if c.conn != nil {
+		if closeErr := c.conn.Close(); closeErr != nil {
+			fmt.Printf("Error closing firehose connection: %v\n", closeErr)
+		}
+		c.conn = nil
+	}
+
+	return err
 }
 
 // handleRepoCommit processes repo commit events from the firehose
