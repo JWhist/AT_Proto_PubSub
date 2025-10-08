@@ -192,6 +192,12 @@ func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
 	if wasConnected {
 		log.Printf("🔌 Removed connection from filter %s (filter connections: %d, total connections: %d/%d)",
 			filterKey[:8]+"...", connectionCount, m.totalConnections, m.maxConnections)
+		
+		// Clean up filter subscription if no connections remain
+		if connectionCount == 0 {
+			delete(m.subscriptions, filterKey)
+			log.Printf("🗑️  Cleaned up filter %s (no connections remaining)", filterKey[:8]+"...")
+		}
 	}
 }
 
