@@ -8,9 +8,9 @@ server:
   
   cors:
     allow_all_origins: false  # More secure CORS for production
-    allowed_origins: ["https://atprotofilter.netlify.app"]
+    allowed_origins: ["https://atprotofilter.netlify.app", "https://atprotofilter.netlify.app/", "http://atprotofilter.netlify.app", "http://atprotofilter.netlify.app/"]
     allowed_methods: ["GET", "POST", "OPTIONS"]
-    allowed_headers: ["Authorization", "Content-Type", "X-Requested-With"]
+    allowed_headers: ["*"]
 
 firehose:
   url: "wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos"

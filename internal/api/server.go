@@ -42,9 +42,13 @@ func (s *Server) corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 
-		// Set other CORS headers
-		w.Header().Set("Access-Control-Allow-Methods", strings.Join(s.config.Server.CORS.AllowedMethods, ", "))
-		w.Header().Set("Access-Control-Allow-Headers", strings.Join(s.config.Server.CORS.AllowedHeaders, ", "))
+		// Set other CORS headers only if configured
+		if len(s.config.Server.CORS.AllowedMethods) > 0 {
+			w.Header().Set("Access-Control-Allow-Methods", strings.Join(s.config.Server.CORS.AllowedMethods, ", "))
+		}
+		if len(s.config.Server.CORS.AllowedHeaders) > 0 {
+			w.Header().Set("Access-Control-Allow-Headers", strings.Join(s.config.Server.CORS.AllowedHeaders, ", "))
+		}
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		// Handle preflight requests
