@@ -7,10 +7,10 @@ services:
     ports:
       - "8085:8080"    # use 8085 on host to avoid conflict with other services
     environment:
-      - CONFIG_FILE=/app/config/production.yaml
+      - CONFIG_FILE=/srv/atp-test/config/production.yaml
     volumes:
-      - ./config/production.yaml:/app/config/production.yaml:ro
-      - ./logs:/app/logs
+      - ./config/production.yaml:/srv/atp-test/config/production.yaml:ro
+      - ./logs:/srv/atp-test/logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/status"]

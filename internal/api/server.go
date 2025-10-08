@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -22,6 +23,38 @@ type Server struct {
 	server         *http.Server
 	upgrader       websocket.Upgrader
 	config         *config.Config
+}
+
+// corsMiddleware adds CORS headers to HTTP responses
+func (s *Server) corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+
+		// Check if origin is allowed
+		if s.config.Server.CORS.AllowAllOrigins {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		} else if origin != "" {
+			for _, allowedOrigin := range s.config.Server.CORS.AllowedOrigins {
+				if origin == allowedOrigin {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					break
+				}
+			}
+		}
+
+		// Set other CORS headers
+		w.Header().Set("Access-Control-Allow-Methods", strings.Join(s.config.Server.CORS.AllowedMethods, ", "))
+		w.Header().Set("Access-Control-Allow-Headers", strings.Join(s.config.Server.CORS.AllowedHeaders, ", "))
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
 }
 
 // NewServer creates a new API server instance
@@ -43,8 +76,17 @@ func NewServerWithConfig(firehoseClient *firehose.Client, cfg *config.Config) *S
 		if cfg.Server.CORS.AllowAllOrigins {
 			return true
 		}
-		// TODO: Implement specific origin checking based on cfg.Server.CORS.AllowedOrigins
-		return true
+
+		// Check if the origin is in the allowed origins list
+		origin := r.Header.Get("Origin")
+		for _, allowedOrigin := range cfg.Server.CORS.AllowedOrigins {
+			if origin == allowedOrigin {
+				return true
+			}
+		}
+
+		// If no origin header or not in allowed list, deny
+		return false
 	}
 
 	apiServer := &Server{
@@ -60,16 +102,16 @@ func NewServerWithConfig(firehoseClient *firehose.Client, cfg *config.Config) *S
 		config: cfg,
 	}
 
-	// Register API routes
-	mux.HandleFunc("/api/filters", apiServer.handleFilters)
-	mux.HandleFunc("/api/filters/update", apiServer.handleUpdateFilters)
-	mux.HandleFunc("/api/filters/create", apiServer.handleCreateFilter)
-	mux.HandleFunc("/api/subscriptions", apiServer.handleGetSubscriptions)
-	mux.HandleFunc("/api/subscriptions/", apiServer.handleGetSubscription)
-	mux.HandleFunc("/api/stats", apiServer.handleStats)
-	mux.HandleFunc("/api/status", apiServer.handleStatus)
+	// Register API routes with CORS middleware
+	mux.HandleFunc("/api/filters", apiServer.corsMiddleware(apiServer.handleFilters))
+	mux.HandleFunc("/api/filters/update", apiServer.corsMiddleware(apiServer.handleUpdateFilters))
+	mux.HandleFunc("/api/filters/create", apiServer.corsMiddleware(apiServer.handleCreateFilter))
+	mux.HandleFunc("/api/subscriptions", apiServer.corsMiddleware(apiServer.handleGetSubscriptions))
+	mux.HandleFunc("/api/subscriptions/", apiServer.corsMiddleware(apiServer.handleGetSubscription))
+	mux.HandleFunc("/api/stats", apiServer.corsMiddleware(apiServer.handleStats))
+	mux.HandleFunc("/api/status", apiServer.corsMiddleware(apiServer.handleStatus))
 	mux.HandleFunc("/ws/", apiServer.handleWebSocket)
-	mux.HandleFunc("/", apiServer.handleRoot)
+	mux.HandleFunc("/", apiServer.corsMiddleware(apiServer.handleRoot))
 
 	// Register Swagger UI
 	mux.Handle("/swagger/", httpSwagger.WrapHandler)

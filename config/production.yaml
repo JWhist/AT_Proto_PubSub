@@ -7,7 +7,8 @@ server:
   shutdown_timeout: "30s"  # Longer timeout for graceful shutdown
   
   cors:
-    allow_all_origins: true  # More permissive CORS for production
+    allow_all_origins: false  # More secure CORS for production
+    allowed_origins: ["https://atprotofilter.netlify.app"]
     allowed_methods: ["GET", "POST", "OPTIONS"]
     allowed_headers: ["Authorization", "Content-Type", "X-Requested-With"]
 
