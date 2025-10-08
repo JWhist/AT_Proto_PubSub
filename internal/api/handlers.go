@@ -432,7 +432,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Set connection timeouts and limits
 	const (
-		writeWait      = 10 * time.Second    // Time allowed to write a message
+		writeWait      = 30 * time.Second    // Time allowed to write a message (increased for better reliability)
 		pongWait       = 60 * time.Second    // Time allowed to read the next pong message
 		pingPeriod     = (pongWait * 9) / 10 // Send pings to peer with this period (must be less than pongWait)
 		maxMessageSize = 512                 // Maximum message size allowed

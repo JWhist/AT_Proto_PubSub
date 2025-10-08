@@ -350,7 +350,21 @@ func (m *Manager) broadcastToSubscription(sub *Subscription, event *models.ATEve
 
 	deadConnections := make([]*websocket.Conn, 0)
 
+	// Write timeout for event messages - more generous than handler timeouts
+	const writeTimeout = 30 * time.Second
+
 	for _, conn := range connections {
+		// Clear any existing deadline and set a fresh one for this message
+		if err := conn.SetWriteDeadline(time.Time{}); err != nil {
+			log.Printf("⚠️  Failed to clear write deadline: %v", err)
+		}
+
+		if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+			log.Printf("⚠️  Failed to set write deadline: %v", err)
+			deadConnections = append(deadConnections, conn)
+			continue
+		}
+
 		if err := conn.WriteJSON(message); err != nil {
 			log.Printf("⚠️  Failed to send message to connection: %v", err)
 			deadConnections = append(deadConnections, conn)
