@@ -17,18 +17,18 @@ func TestCreateFilterValidation(t *testing.T) {
 		t.Errorf("Expected empty filter key for empty options, got: %s", filterKey)
 	}
 
-	// Test case 2: Filter with only repository should succeed
+	// Test case 2: Filter with only repository but no keyword should fail
 	repoOptions := models.FilterOptions{Repository: "did:plc:test123"}
 	filterKey = manager.CreateFilter(repoOptions)
-	if filterKey == "" {
-		t.Error("Expected valid filter key for repository filter")
+	if filterKey != "" {
+		t.Error("Expected empty filter key for repository filter without keyword")
 	}
 
-	// Test case 3: Filter with only pathPrefix should succeed
+	// Test case 3: Filter with only pathPrefix but no keyword should fail
 	pathOptions := models.FilterOptions{PathPrefix: "app.bsky.feed.post"}
 	filterKey = manager.CreateFilter(pathOptions)
-	if filterKey == "" {
-		t.Error("Expected valid filter key for path prefix filter")
+	if filterKey != "" {
+		t.Error("Expected empty filter key for path prefix filter without keyword")
 	}
 
 	// Test case 4: Filter with only keyword should succeed
@@ -92,8 +92,11 @@ func TestMatchesFilterSafety(t *testing.T) {
 func TestEnrichedEventTimestamps(t *testing.T) {
 	manager := NewManager()
 
-	// Create a filter
-	options := models.FilterOptions{Repository: "did:plc:test123"}
+	// Create a filter with required keyword
+	options := models.FilterOptions{
+		Repository: "did:plc:test123",
+		Keyword:    "test",
+	}
 	filterKey := manager.CreateFilter(options)
 	if filterKey == "" {
 		t.Fatal("Failed to create test filter")

@@ -61,9 +61,15 @@ func TestGetSubscriptions(t *testing.T) {
 		t.Errorf("Expected 0 subscriptions, got %d", len(subs))
 	}
 
-	// Create a few filters
-	options1 := models.FilterOptions{Repository: "did:plc:test1"}
-	options2 := models.FilterOptions{PathPrefix: "app.bsky.feed.post"}
+	// Create a few filters with required keywords
+	options1 := models.FilterOptions{
+		Repository: "did:plc:test1",
+		Keyword:    "test",
+	}
+	options2 := models.FilterOptions{
+		PathPrefix: "app.bsky.feed.post",
+		Keyword:    "hello",
+	}
 
 	key1 := manager.CreateFilter(options1)
 	key2 := manager.CreateFilter(options2)
@@ -475,9 +481,15 @@ func TestGetStats(t *testing.T) {
 		t.Errorf("Expected 0 total connections, got %v", stats["total_connections"])
 	}
 
-	// Create some filters
-	options1 := models.FilterOptions{Repository: "did:plc:test1"}
-	options2 := models.FilterOptions{Repository: "did:plc:test2"}
+	// Create some filters with required keywords
+	options1 := models.FilterOptions{
+		Repository: "did:plc:test1",
+		Keyword:    "test",
+	}
+	options2 := models.FilterOptions{
+		Repository: "did:plc:test2",
+		Keyword:    "hello",
+	}
 
 	manager.CreateFilter(options1)
 	manager.CreateFilter(options2)
@@ -515,6 +527,7 @@ func TestConcurrentAccess(t *testing.T) {
 		for i := 0; i < 50; i++ {
 			options := models.FilterOptions{
 				Repository: "did:plc:test",
+				Keyword:    "test",
 			}
 			manager.CreateFilter(options)
 		}
@@ -525,6 +538,7 @@ func TestConcurrentAccess(t *testing.T) {
 		for i := 0; i < 50; i++ {
 			options := models.FilterOptions{
 				PathPrefix: "app.bsky.feed.post",
+				Keyword:    "hello",
 			}
 			manager.CreateFilter(options)
 		}

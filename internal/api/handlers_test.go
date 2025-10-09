@@ -133,8 +133,8 @@ func TestHandleGetSubscriptions(t *testing.T) {
 	}
 
 	// Create some subscriptions and test again
-	options1 := models.FilterOptions{Repository: "did:plc:test1"}
-	options2 := models.FilterOptions{PathPrefix: "app.bsky.feed.post"}
+	options1 := models.FilterOptions{Repository: "did:plc:test1", Keyword: "test"}
+	options2 := models.FilterOptions{PathPrefix: "app.bsky.feed.post", Keyword: "hello"}
 
 	subscriptionManager.CreateFilter(options1)
 	subscriptionManager.CreateFilter(options2)
@@ -236,6 +236,7 @@ func TestFilterRouting(t *testing.T) {
 				payload := models.CreateFilterRequest{
 					Options: models.FilterOptions{
 						Repository: "did:plc:test123", // Add valid filter criteria
+						Keyword:    "test",
 					},
 				}
 				body, _ = json.Marshal(payload)
@@ -277,7 +278,7 @@ func TestWebSocketUpgrade(t *testing.T) {
 	}
 
 	// Create a test filter first
-	options := models.FilterOptions{Repository: "did:plc:test123"}
+	options := models.FilterOptions{Repository: "did:plc:test123", Keyword: "test"}
 	filterKey := subscriptionManager.CreateFilter(options)
 
 	// Test WebSocket upgrade with valid filter key
@@ -331,6 +332,7 @@ func TestConcurrentAPIAccess(t *testing.T) {
 			payload := models.CreateFilterRequest{
 				Options: models.FilterOptions{
 					Repository: "did:plc:test" + string(rune(i)),
+					Keyword:    "test",
 				},
 			}
 			body, _ := json.Marshal(payload)

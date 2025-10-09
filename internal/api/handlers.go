@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -83,8 +84,9 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 				"keyword":    "Filter by keywords in text content (comma-separated, e.g., 'hello,world,test')",
 			},
 			"requirements": []string{
-				"At least one filter criteria (repository, pathPrefix, or keyword) must be provided",
-				"Filters with no criteria are rejected to prevent forwarding the entire firehose",
+				"Keyword filter is required for all subscriptions",
+				"Each filter field (repository, pathPrefix, keyword) must contain at least 3 letters",
+				"Keywords are comma-separated and each must have at least 3 letters",
 			},
 		},
 	}
@@ -232,13 +234,13 @@ func getFilterString(filter string) string {
 
 // handleCreateFilter creates a new filter subscription and returns a filter key
 // @Summary Create Filter Subscription
-// @Description Create a new filter subscription for receiving real-time events. At least one filter criteria must be provided to prevent forwarding the entire firehose.
+// @Description Create a new filter subscription for receiving real-time events. Keyword filter is required and must contain at least 3 letters to prevent forwarding the entire firehose.
 // @Tags Subscriptions
 // @Accept json
 // @Produce json
 // @Param request body models.CreateFilterRequest true "Filter creation request"
 // @Success 200 {object} models.CreateFilterResponse "Filter subscription created successfully"
-// @Failure 400 {object} models.APIResponse "Invalid request - no filter criteria provided"
+// @Failure 400 {object} models.APIResponse "Invalid request - keyword filter required or insufficient letters"
 // @Router /api/filters/create [post]
 func (s *Server) handleCreateFilter(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -260,11 +262,25 @@ func (s *Server) handleCreateFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate that at least one filter criteria is provided
-	if req.Options.Repository == "" && req.Options.PathPrefix == "" && req.Options.Keyword == "" {
+	// Validate that keyword filter is always provided
+	if req.Options.Keyword == "" {
 		response := models.APIResponse{
 			Success: false,
-			Message: "At least one filter criteria must be provided (repository, pathPrefix, or keyword). Filters with no criteria are not allowed to prevent forwarding the entire firehose.",
+			Message: "Keyword filter is required. Filters must include keywords to prevent forwarding the entire firehose.",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		if encErr := json.NewEncoder(w).Encode(response); encErr != nil {
+			http.Error(w, "Failed to encode error response", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Validate filter content - each non-empty field must contain at least 3 letters
+	if validationErr := validateFilterContent(req.Options); validationErr != "" {
+		response := models.APIResponse{
+			Success: false,
+			Message: validationErr,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -599,4 +615,42 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// validateFilterContent validates that non-empty filter fields contain at least 3 letters
+func validateFilterContent(options models.FilterOptions) string {
+	letterRegex := regexp.MustCompile(`[a-zA-Z]`)
+
+	// Validate repository field
+	if options.Repository != "" {
+		if countLetters(options.Repository, letterRegex) < 3 {
+			return "Repository filter must contain at least 3 letters"
+		}
+	}
+
+	// Validate pathPrefix field
+	if options.PathPrefix != "" {
+		if countLetters(options.PathPrefix, letterRegex) < 3 {
+			return "Path prefix filter must contain at least 3 letters"
+		}
+	}
+
+	// Validate keyword field - check each keyword individually
+	if options.Keyword != "" {
+		keywords := strings.Split(options.Keyword, ",")
+		for _, keyword := range keywords {
+			keyword = strings.TrimSpace(keyword)
+			if keyword != "" && countLetters(keyword, letterRegex) < 3 {
+				return fmt.Sprintf("Keyword '%s' must contain at least 3 letters", keyword)
+			}
+		}
+	}
+
+	return "" // No validation errors
+}
+
+// countLetters counts the number of letters in a string
+func countLetters(s string, letterRegex *regexp.Regexp) int {
+	matches := letterRegex.FindAllString(s, -1)
+	return len(matches)
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -50,9 +51,15 @@ func NewManagerWithConfig(maxConnections int) *Manager {
 
 // CreateFilter creates a new filter subscription and returns a unique key
 func (m *Manager) CreateFilter(options models.FilterOptions) string {
-	// Validate that at least one filter criteria is provided
-	if options.Repository == "" && options.PathPrefix == "" && options.Keyword == "" {
-		log.Printf("❌ Rejected filter creation: no filter criteria provided")
+	// Validate that keyword filter is always provided
+	if options.Keyword == "" {
+		log.Printf("❌ Rejected filter creation: keyword filter is required")
+		return "" // Return empty string to indicate failure
+	}
+
+	// Validate filter content - each non-empty field must contain at least 3 letters
+	if validationErr := validateFilterContent(options); validationErr != "" {
+		log.Printf("❌ Rejected filter creation: %s", validationErr)
 		return "" // Return empty string to indicate failure
 	}
 
@@ -192,7 +199,7 @@ func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
 	if wasConnected {
 		log.Printf("🔌 Removed connection from filter %s (filter connections: %d, total connections: %d/%d)",
 			filterKey[:8]+"...", connectionCount, m.totalConnections, m.maxConnections)
-		
+
 		// Clean up filter subscription if no connections remain
 		if connectionCount == 0 {
 			delete(m.subscriptions, filterKey)
@@ -468,4 +475,42 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// validateFilterContent validates that non-empty filter fields contain at least 3 letters
+func validateFilterContent(options models.FilterOptions) string {
+	letterRegex := regexp.MustCompile(`[a-zA-Z]`)
+
+	// Validate repository field
+	if options.Repository != "" {
+		if countLetters(options.Repository, letterRegex) < 3 {
+			return "Repository filter must contain at least 3 letters"
+		}
+	}
+
+	// Validate pathPrefix field
+	if options.PathPrefix != "" {
+		if countLetters(options.PathPrefix, letterRegex) < 3 {
+			return "Path prefix filter must contain at least 3 letters"
+		}
+	}
+
+	// Validate keyword field - check each keyword individually
+	if options.Keyword != "" {
+		keywords := strings.Split(options.Keyword, ",")
+		for _, keyword := range keywords {
+			keyword = strings.TrimSpace(keyword)
+			if keyword != "" && countLetters(keyword, letterRegex) < 3 {
+				return fmt.Sprintf("Keyword '%s' must contain at least 3 letters", keyword)
+			}
+		}
+	}
+
+	return "" // No validation errors
+}
+
+// countLetters counts the number of letters in a string
+func countLetters(s string, letterRegex *regexp.Regexp) int {
+	matches := letterRegex.FindAllString(s, -1)
+	return len(matches)
 }
