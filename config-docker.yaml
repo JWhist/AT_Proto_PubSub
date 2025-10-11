@@ -6,6 +6,9 @@ server:
   port: "8080"
   # Host to bind to - 0.0.0.0 for Docker containers to accept external connections
   host: "0.0.0.0"
+  # Metrics server configuration
+  metrics_port: "9090"
+  metrics_host: "0.0.0.0"
   # Maximum number of concurrent WebSocket connections
   max_connections: 1000
   # Graceful shutdown timeout

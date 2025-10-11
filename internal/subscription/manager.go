@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	metriks "github.com/JWhist/AT_Proto_PubSub/internal/metrics"
 	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
 
@@ -64,6 +65,7 @@ func (m *Manager) CreateFilter(options models.FilterOptions) string {
 	}
 
 	filterKey := generateFilterKey()
+	metriks.FiltersCreated.Inc()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -168,6 +170,7 @@ func (m *Manager) AddConnectionWithResult(filterKey string, conn *websocket.Conn
 	sub.mu.Unlock()
 
 	m.totalConnections++
+	metriks.WebsocketConnections.Set(float64(m.totalConnections))
 
 	log.Printf("🔌 Added connection to filter %s (filter connections: %d, total connections: %d/%d)",
 		filterKey[:8]+"...", connectionCount, m.totalConnections, m.maxConnections)
@@ -192,6 +195,7 @@ func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
 	if wasConnected {
 		delete(sub.Connections, conn)
 		m.totalConnections--
+		metriks.WebsocketConnections.Set(float64(m.totalConnections))
 	}
 	connectionCount := len(sub.Connections)
 	sub.mu.Unlock()
@@ -203,6 +207,7 @@ func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
 		// Clean up filter subscription if no connections remain
 		if connectionCount == 0 {
 			delete(m.subscriptions, filterKey)
+			metriks.FiltersDeleted.Inc()
 			log.Printf("🗑️  Cleaned up filter %s (no connections remaining)", filterKey[:8]+"...")
 		}
 	}
@@ -220,6 +225,7 @@ func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 		if m.matchesFilter(event, sub.Options) {
 			m.broadcastToSubscription(sub, event, receivedAt)
 			matchCount++
+			metriks.MessagesSent.WithLabelValues(sub.Options.Keyword).Inc()
 		}
 	}
 

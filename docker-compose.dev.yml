@@ -5,7 +5,8 @@ services:
     build: .
     container_name: at-proto-pubsub-dev
     ports:
-      - "8080:8080"    # exposed only locally
+      - "8080:8080"  
+      - "9090:9090"  # exposed only locally
     environment:
       - CONFIG_FILE=/app/config-docker.yaml
     volumes:

@@ -20,6 +20,8 @@ type Config struct {
 type ServerConfig struct {
 	Port            string        `yaml:"port" default:"8080"`
 	Host            string        `yaml:"host" default:"localhost"`
+	MetricsPort     string        `yaml:"metrics_port" default:"9090"`
+	MetricsHost     string        `yaml:"metrics_host" default:"localhost"`
 	MaxConnections  int           `yaml:"max_connections" default:"1000"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" default:"10s"`
 	CORS            CORSConfig    `yaml:"cors"`

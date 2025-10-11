@@ -3,6 +3,8 @@
 server:
   port: "8080"
   host: "0.0.0.0"
+  metrics_port: "9090"
+  metrics_host: "0.0.0.0"
   max_connections: 50  # Higher limit for production
   shutdown_timeout: "30s"  # Longer timeout for graceful shutdown
   

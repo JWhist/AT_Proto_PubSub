@@ -6,6 +6,10 @@ server:
   port: "8080"
   # Host to bind to (use "0.0.0.0" for all interfaces, "localhost" for local only)
   host: "localhost"
+  # Metrics Port
+  metrics_port: "9090"
+  # Metrics Host
+  metrics_host: "localhost"
   # Maximum number of concurrent WebSocket connections (default: 1000)
   max_connections: 1000
   # Graceful shutdown timeout

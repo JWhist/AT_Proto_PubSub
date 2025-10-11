@@ -13,6 +13,7 @@ import (
 	"github.com/JWhist/AT_Proto_PubSub/internal/api"
 	"github.com/JWhist/AT_Proto_PubSub/internal/config"
 	"github.com/JWhist/AT_Proto_PubSub/internal/firehose"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -66,6 +67,16 @@ func main() {
 	go func() {
 		if err := apiServer.Start(); err != nil && err != http.ErrServerClosed {
 			log.Printf("API server error: %v", err)
+			cancel()
+		}
+	}()
+
+	// Start metrics server in a goroutine
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		fmt.Printf("Starting metrics server on %s:%s\n", cfg.Server.MetricsHost, cfg.Server.MetricsPort)
+		if err := http.ListenAndServe(fmt.Sprintf("%s:%s", cfg.Server.MetricsHost, cfg.Server.MetricsPort), nil); err != nil {
+			log.Printf("Metrics server error: %v", err)
 			cancel()
 		}
 	}()
