@@ -715,48 +715,48 @@ func TestGetMatchingKeywords(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		keywords         string
-		expectedMatches  []string
+		name            string
+		keywords        string
+		expectedMatches []string
 	}{
 		{
-			name:             "Single matching keyword",
-			keywords:         "cats",
-			expectedMatches:  []string{"cats"},
+			name:            "Single matching keyword",
+			keywords:        "cats",
+			expectedMatches: []string{"cats"},
 		},
 		{
-			name:             "Multiple keywords, some match",
-			keywords:         "cats,birds,dogs",
-			expectedMatches:  []string{"cats", "dogs"},
+			name:            "Multiple keywords, some match",
+			keywords:        "cats,birds,dogs",
+			expectedMatches: []string{"cats", "dogs"},
 		},
 		{
-			name:             "Multiple keywords, none match",
-			keywords:         "fish,birds,hamsters",
-			expectedMatches:  []string{},
+			name:            "Multiple keywords, none match",
+			keywords:        "fish,birds,hamsters",
+			expectedMatches: []string{},
 		},
 		{
-			name:             "Keywords with spaces",
-			keywords:         " cats , birds , dogs ",
-			expectedMatches:  []string{"cats", "dogs"},
+			name:            "Keywords with spaces",
+			keywords:        " cats , birds , dogs ",
+			expectedMatches: []string{"cats", "dogs"},
 		},
 		{
-			name:             "Empty keywords",
-			keywords:         "",
-			expectedMatches:  nil,
+			name:            "Empty keywords",
+			keywords:        "",
+			expectedMatches: nil,
 		},
 		{
-			name:             "Case insensitive matching",
-			keywords:         "CATS,DOGS,BIRDS",
-			expectedMatches:  []string{"CATS", "DOGS"},
+			name:            "Case insensitive matching",
+			keywords:        "CATS,DOGS,BIRDS",
+			expectedMatches: []string{"CATS", "DOGS"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			matches := manager.getMatchingKeywords(event, tt.keywords)
-			
+
 			if len(matches) != len(tt.expectedMatches) {
-				t.Errorf("Expected %d matches, got %d. Expected: %v, Got: %v", 
+				t.Errorf("Expected %d matches, got %d. Expected: %v, Got: %v",
 					len(tt.expectedMatches), len(matches), tt.expectedMatches, matches)
 				return
 			}

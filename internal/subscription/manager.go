@@ -238,7 +238,7 @@ func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 		if m.matchesFilter(event, sub.Options) {
 			m.broadcastToSubscription(sub, event, receivedAt)
 			matchCount++
-			
+
 			// Only increment metrics for keywords that actually matched
 			if matchingKeywords := m.getMatchingKeywords(event, sub.Options.Keyword); len(matchingKeywords) > 0 {
 				for _, keyword := range matchingKeywords {
