@@ -30,6 +30,7 @@ type Manager struct {
 	// Keyword activity tracking
 	keywordCounts   map[string]int
 	keywordCountsMu sync.RWMutex
+	allSeenKeywords map[string]bool // Track all keywords we've ever seen
 	activityTicker  *time.Ticker
 	activityStop    chan bool
 	activityRunning bool
@@ -48,11 +49,12 @@ type Subscription struct {
 // NewManager creates a new subscription manager
 func NewManager() *Manager {
 	m := &Manager{
-		subscriptions:  make(map[string]*Subscription),
-		maxConnections: 1000, // Default limit
-		cleanupStop:    make(chan bool, 1),
-		keywordCounts:  make(map[string]int),
-		activityStop:   make(chan bool, 1),
+		subscriptions:   make(map[string]*Subscription),
+		maxConnections:  1000, // Default limit
+		cleanupStop:     make(chan bool, 1),
+		keywordCounts:   make(map[string]int),
+		allSeenKeywords: make(map[string]bool),
+		activityStop:    make(chan bool, 1),
 	}
 	m.startPeriodicCleanup()
 	m.startActivityTracking()
@@ -62,11 +64,12 @@ func NewManager() *Manager {
 // NewManagerWithConfig creates a new subscription manager with configuration
 func NewManagerWithConfig(maxConnections int) *Manager {
 	m := &Manager{
-		subscriptions:  make(map[string]*Subscription),
-		maxConnections: maxConnections,
-		cleanupStop:    make(chan bool, 1),
-		keywordCounts:  make(map[string]int),
-		activityStop:   make(chan bool, 1),
+		subscriptions:   make(map[string]*Subscription),
+		maxConnections:  maxConnections,
+		cleanupStop:     make(chan bool, 1),
+		keywordCounts:   make(map[string]int),
+		allSeenKeywords: make(map[string]bool),
+		activityStop:    make(chan bool, 1),
 	}
 	m.startPeriodicCleanup()
 	m.startActivityTracking()
@@ -713,7 +716,10 @@ func (m *Manager) startActivityTracking() {
 		for {
 			select {
 			case <-m.activityTicker.C:
-				m.updateAndResetKeywordActivity()
+				// First update metrics with current counts
+				m.updateKeywordActivityMetrics()
+				// Then reset counts for next window
+				m.resetKeywordActivityCounts()
 			case <-m.activityStop:
 				m.activityTicker.Stop()
 				m.activityRunning = false
@@ -729,28 +735,32 @@ func (m *Manager) startActivityTracking() {
 func (m *Manager) incrementKeywordActivity(keyword string) {
 	m.keywordCountsMu.Lock()
 	m.keywordCounts[keyword]++
+	m.allSeenKeywords[keyword] = true // Track that we've seen this keyword
 	m.keywordCountsMu.Unlock()
 }
 
-// updateAndResetKeywordActivity updates the metrics with current counts and resets them
-func (m *Manager) updateAndResetKeywordActivity() {
-	m.keywordCountsMu.Lock()
-	defer m.keywordCountsMu.Unlock()
+// updateKeywordActivityMetrics updates the metrics with current counts
+func (m *Manager) updateKeywordActivityMetrics() {
+	m.keywordCountsMu.RLock()
+	defer m.keywordCountsMu.RUnlock()
 
-	// Update metrics with current counts
-	for keyword, count := range m.keywordCounts {
+	// Update metrics for all keywords we've ever seen
+	for keyword := range m.allSeenKeywords {
+		count := m.keywordCounts[keyword] // Will be 0 if not in current counts
 		metriks.KeywordActivity.WithLabelValues(keyword).Set(float64(count))
 		if count > 0 {
 			log.Printf("📈 Keyword activity: '%s' = %d messages", keyword, count)
 		}
 	}
+}
 
-	// Reset all counts to zero for next window
-	// Also set metrics to 0 for keywords that had no activity this window
-	for keyword := range m.keywordCounts {
-		metriks.KeywordActivity.WithLabelValues(keyword).Set(0)
-		delete(m.keywordCounts, keyword)
-	}
+// resetKeywordActivityCounts clears the internal counts for the next window
+func (m *Manager) resetKeywordActivityCounts() {
+	m.keywordCountsMu.Lock()
+	defer m.keywordCountsMu.Unlock()
+
+	// Clear the internal counts for next window
+	m.keywordCounts = make(map[string]int)
 }
 
 // stopActivityTracking stops the keyword activity tracking routine
