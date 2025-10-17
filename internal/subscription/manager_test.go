@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"testing"
+	"time"
 
 	"github.com/JWhist/AT_Proto_PubSub/internal/models"
 )
@@ -606,24 +607,91 @@ func TestEmptyFilterCleanup(t *testing.T) {
 		},
 	}
 
-	// Broadcast event - this should trigger cleanup of empty filters
+	// Broadcast event - this should NOT trigger cleanup of empty filters anymore
 	manager.BroadcastEvent(event)
 
-	// Verify that filters without connections were cleaned up
+	// Verify that all filters still exist (no cleanup during broadcast)
 	remainingFilters := manager.GetSubscriptions()
-	if len(remainingFilters) != 1 {
-		t.Errorf("Expected 1 filter after cleanup, got %d", len(remainingFilters))
+	if len(remainingFilters) != 3 {
+		t.Errorf("Expected 3 filters after broadcast (no cleanup), got %d", len(remainingFilters))
 	}
 
-	// Verify the remaining filter is the one with connections
-	if remainingFilters[0].FilterKey != filterKey2 {
-		t.Error("The filter with connections should remain after cleanup")
+	// Now remove the connection from filterKey2 - this should trigger cleanup
+	manager.RemoveConnection(filterKey2, nil)
+
+	// Verify filterKey2 was cleaned up when its last connection was removed
+	afterRemoveFilters := manager.GetSubscriptions()
+	if len(afterRemoveFilters) != 2 {
+		t.Errorf("Expected 2 filters after connection removal, got %d", len(afterRemoveFilters))
 	}
 
-	// Verify the empty filters were removed
+	// Verify filterKey2 no longer exists but others do
+	_, exists2 := manager.GetSubscription(filterKey2)
 	_, exists1 := manager.GetSubscription(filterKey1)
 	_, exists3 := manager.GetSubscription(filterKey3)
-	if exists1 || exists3 {
-		t.Error("Empty filters should have been cleaned up")
+
+	if exists2 {
+		t.Error("Filter with removed connection should have been cleaned up")
+	}
+	if !exists1 || !exists3 {
+		t.Error("Filters without connections should still exist (only cleaned up when last connection is removed)")
+	}
+}
+
+func TestPeriodicCleanup(t *testing.T) {
+	// Create a manager but we'll manually control the cleanup for testing
+	manager := &Manager{
+		subscriptions:  make(map[string]*Subscription),
+		maxConnections: 1000,
+		cleanupStop:    make(chan bool, 1),
+	}
+
+	// Create some filters
+	options1 := models.FilterOptions{Repository: "did:plc:test1", Keyword: "test"}
+	options2 := models.FilterOptions{Repository: "did:plc:test2", Keyword: "hello"}
+
+	filterKey1 := manager.CreateFilter(options1)
+	filterKey2 := manager.CreateFilter(options2)
+
+	// Verify both filters exist
+	if len(manager.GetSubscriptions()) != 2 {
+		t.Errorf("Expected 2 filters initially, got %d", len(manager.GetSubscriptions()))
+	}
+
+	// Add and immediately remove a connection from filterKey2 to simulate it having had activity
+	manager.AddConnection(filterKey2, nil)
+	manager.RemoveConnection(filterKey2, nil)
+
+	// Artificially age the filters by modifying their timestamps
+	manager.mu.Lock()
+	now := time.Now()
+	oldTime := now.Add(-15 * time.Minute) // 15 minutes ago (past grace period)
+
+	// Age filterKey1 (never had connections)
+	if sub1, exists := manager.subscriptions[filterKey1]; exists {
+		sub1.CreatedAt = oldTime
+	}
+
+	// Age filterKey2 (had connections but empty now)
+	if sub2, exists := manager.subscriptions[filterKey2]; exists {
+		pastTime := oldTime
+		sub2.LastConnectionAt = &pastTime
+	}
+	manager.mu.Unlock()
+
+	// Run periodic cleanup manually
+	manager.performPeriodicCleanup()
+
+	// Verify both old filters were cleaned up
+	remainingFilters := manager.GetSubscriptions()
+	if len(remainingFilters) != 0 {
+		t.Errorf("Expected 0 filters after periodic cleanup, got %d", len(remainingFilters))
+	}
+
+	// Verify the filters no longer exist
+	_, exists1 := manager.GetSubscription(filterKey1)
+	_, exists2 := manager.GetSubscription(filterKey2)
+	if exists1 || exists2 {
+		t.Error("Old filters should have been cleaned up by periodic cleanup")
 	}
 }

@@ -23,31 +23,42 @@ type Manager struct {
 	subscriptions    map[string]*Subscription
 	maxConnections   int
 	totalConnections int
+	// Periodic cleanup
+	cleanupTicker  *time.Ticker
+	cleanupStop    chan bool
+	cleanupRunning bool
 }
 
 // Subscription represents a filter with its associated WebSocket connections
 type Subscription struct {
-	FilterKey   string
-	Options     models.FilterOptions
-	CreatedAt   time.Time
-	Connections map[*websocket.Conn]bool
-	mu          sync.RWMutex
+	FilterKey        string
+	Options          models.FilterOptions
+	CreatedAt        time.Time
+	LastConnectionAt *time.Time // Track when the last connection was active
+	Connections      map[*websocket.Conn]bool
+	mu               sync.RWMutex
 }
 
 // NewManager creates a new subscription manager
 func NewManager() *Manager {
-	return &Manager{
+	m := &Manager{
 		subscriptions:  make(map[string]*Subscription),
 		maxConnections: 1000, // Default limit
+		cleanupStop:    make(chan bool, 1),
 	}
+	m.startPeriodicCleanup()
+	return m
 }
 
 // NewManagerWithConfig creates a new subscription manager with configuration
 func NewManagerWithConfig(maxConnections int) *Manager {
-	return &Manager{
+	m := &Manager{
 		subscriptions:  make(map[string]*Subscription),
 		maxConnections: maxConnections,
+		cleanupStop:    make(chan bool, 1),
 	}
+	m.startPeriodicCleanup()
+	return m
 }
 
 // CreateFilter creates a new filter subscription and returns a unique key
@@ -166,6 +177,8 @@ func (m *Manager) AddConnectionWithResult(filterKey string, conn *websocket.Conn
 
 	sub.mu.Lock()
 	sub.Connections[conn] = true
+	now := time.Now()
+	sub.LastConnectionAt = &now
 	connectionCount := len(sub.Connections)
 	sub.mu.Unlock()
 
@@ -213,40 +226,9 @@ func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
 	}
 }
 
-// cleanupEmptyFilters removes filters that have no active connections
-// This method assumes the manager mutex is already held by the caller
-func (m *Manager) cleanupEmptyFilters() {
-	filtersToDelete := make([]string, 0)
-
-	for filterKey, sub := range m.subscriptions {
-		sub.mu.RLock()
-		connectionCount := len(sub.Connections)
-		sub.mu.RUnlock()
-
-		if connectionCount == 0 {
-			filtersToDelete = append(filtersToDelete, filterKey)
-		}
-	}
-
-	for _, filterKey := range filtersToDelete {
-		delete(m.subscriptions, filterKey)
-		metriks.FiltersDeleted.Inc()
-		log.Printf("🗑️  Cleaned up empty filter %s (no connections)", filterKey[:8]+"...")
-	}
-
-	if len(filtersToDelete) > 0 {
-		log.Printf("🧹 Cleaned up %d empty filter(s) before broadcast", len(filtersToDelete))
-	}
-}
-
 // BroadcastEvent sends an event to all matching filter subscriptions
 func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 	receivedAt := time.Now() // Track when we received this event
-
-	m.mu.Lock()
-	// Clean up filters with zero connections before broadcasting
-	m.cleanupEmptyFilters()
-	m.mu.Unlock()
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -556,4 +538,123 @@ func validateFilterContent(options models.FilterOptions) string {
 func countLetters(s string, letterRegex *regexp.Regexp) int {
 	matches := letterRegex.FindAllString(s, -1)
 	return len(matches)
+}
+
+// startPeriodicCleanup starts the periodic cleanup routine
+func (m *Manager) startPeriodicCleanup() {
+	const cleanupInterval = 5 * time.Minute // Run cleanup every 5 minutes
+	m.cleanupTicker = time.NewTicker(cleanupInterval)
+	m.cleanupRunning = true
+
+	go func() {
+		for {
+			select {
+			case <-m.cleanupTicker.C:
+				m.performPeriodicCleanup()
+			case <-m.cleanupStop:
+				m.cleanupTicker.Stop()
+				m.cleanupRunning = false
+				return
+			}
+		}
+	}()
+
+	log.Printf("🧹 Started periodic filter cleanup (every %v)", cleanupInterval)
+}
+
+// StopPeriodicCleanup stops the periodic cleanup routine
+func (m *Manager) StopPeriodicCleanup() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.cleanupRunning && m.cleanupStop != nil {
+		select {
+		case m.cleanupStop <- true:
+			log.Printf("🛑 Stopped periodic filter cleanup")
+		default:
+			// Channel might be closed or full, that's OK
+		}
+		m.cleanupRunning = false
+	}
+}
+
+// Shutdown gracefully shuts down the manager and stops all background processes
+func (m *Manager) Shutdown() {
+	log.Printf("🔄 Shutting down subscription manager...")
+	m.StopPeriodicCleanup()
+
+	// Close all active connections
+	m.mu.Lock()
+	totalConnections := 0
+	for _, sub := range m.subscriptions {
+		sub.mu.Lock()
+		for conn := range sub.Connections {
+			if err := conn.Close(); err != nil {
+				log.Printf("⚠️  Error closing connection: %v", err)
+			}
+			totalConnections++
+		}
+		sub.Connections = make(map[*websocket.Conn]bool)
+		sub.mu.Unlock()
+	}
+	m.totalConnections = 0
+	m.mu.Unlock()
+
+	if totalConnections > 0 {
+		log.Printf("🔌 Closed %d active connections during shutdown", totalConnections)
+	}
+
+	log.Printf("✅ Subscription manager shutdown complete")
+}
+
+// performPeriodicCleanup removes filters that have been empty for a grace period
+func (m *Manager) performPeriodicCleanup() {
+	const gracePeriod = 10 * time.Minute // Grace period for empty filters
+	now := time.Now()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	filtersToDelete := make([]string, 0)
+
+	for filterKey, sub := range m.subscriptions {
+		sub.mu.RLock()
+		connectionCount := len(sub.Connections)
+		createdAt := sub.CreatedAt
+		lastConnectionAt := sub.LastConnectionAt
+		sub.mu.RUnlock()
+
+		if connectionCount == 0 {
+			var shouldDelete bool
+			var reason string
+
+			// Check if this filter has never had connections and is past grace period
+			if lastConnectionAt == nil {
+				if now.Sub(createdAt) > gracePeriod {
+					shouldDelete = true
+					reason = fmt.Sprintf("no connections for %v since creation", now.Sub(createdAt).Round(time.Minute))
+				}
+			} else {
+				// Check if this filter had connections but has been empty for grace period
+				if now.Sub(*lastConnectionAt) > gracePeriod {
+					shouldDelete = true
+					reason = fmt.Sprintf("no connections for %v since last activity", now.Sub(*lastConnectionAt).Round(time.Minute))
+				}
+			}
+
+			if shouldDelete {
+				filtersToDelete = append(filtersToDelete, filterKey)
+				log.Printf("🗑️  Periodic cleanup: filter %s (%s)", filterKey[:8]+"...", reason)
+			}
+		}
+	}
+
+	for _, filterKey := range filtersToDelete {
+		delete(m.subscriptions, filterKey)
+		metriks.FiltersDeleted.Inc()
+	}
+
+	if len(filtersToDelete) > 0 {
+		log.Printf("🧹 Periodic cleanup removed %d stale filter(s)", len(filtersToDelete))
+	}
 }

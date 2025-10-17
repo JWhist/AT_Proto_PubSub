@@ -102,6 +102,9 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer shutdownCancel()
 
+	// Shutdown subscription manager
+	apiServer.GetSubscriptionManager().Shutdown()
+
 	if err := apiServer.Stop(shutdownCtx); err != nil {
 		log.Printf("API server shutdown error: %v", err)
 	}
