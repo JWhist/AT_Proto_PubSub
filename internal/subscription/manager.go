@@ -213,9 +213,40 @@ func (m *Manager) RemoveConnection(filterKey string, conn *websocket.Conn) {
 	}
 }
 
+// cleanupEmptyFilters removes filters that have no active connections
+// This method assumes the manager mutex is already held by the caller
+func (m *Manager) cleanupEmptyFilters() {
+	filtersToDelete := make([]string, 0)
+
+	for filterKey, sub := range m.subscriptions {
+		sub.mu.RLock()
+		connectionCount := len(sub.Connections)
+		sub.mu.RUnlock()
+
+		if connectionCount == 0 {
+			filtersToDelete = append(filtersToDelete, filterKey)
+		}
+	}
+
+	for _, filterKey := range filtersToDelete {
+		delete(m.subscriptions, filterKey)
+		metriks.FiltersDeleted.Inc()
+		log.Printf("🗑️  Cleaned up empty filter %s (no connections)", filterKey[:8]+"...")
+	}
+
+	if len(filtersToDelete) > 0 {
+		log.Printf("🧹 Cleaned up %d empty filter(s) before broadcast", len(filtersToDelete))
+	}
+}
+
 // BroadcastEvent sends an event to all matching filter subscriptions
 func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 	receivedAt := time.Now() // Track when we received this event
+
+	m.mu.Lock()
+	// Clean up filters with zero connections before broadcasting
+	m.cleanupEmptyFilters()
+	m.mu.Unlock()
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -225,7 +256,13 @@ func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 		if m.matchesFilter(event, sub.Options) {
 			m.broadcastToSubscription(sub, event, receivedAt)
 			matchCount++
-			metriks.MessagesSent.WithLabelValues(sub.Options.Keyword).Inc()
+			keywords := strings.Split(sub.Options.Keyword, ",")
+			for _, keyword := range keywords {
+				keyword = strings.TrimSpace(keyword)
+				if keyword != "" {
+					metriks.MessagesSent.WithLabelValues(keyword).Inc()
+				}
+			}
 		}
 	}
 

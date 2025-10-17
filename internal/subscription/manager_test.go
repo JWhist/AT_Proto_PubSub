@@ -571,3 +571,59 @@ func TestConcurrentAccess(t *testing.T) {
 		t.Errorf("Expected 100 subscriptions after concurrent creation, got %d", len(subs))
 	}
 }
+
+func TestEmptyFilterCleanup(t *testing.T) {
+	manager := NewManager()
+
+	// Create some filters
+	options1 := models.FilterOptions{Repository: "did:plc:test1", Keyword: "test"}
+	options2 := models.FilterOptions{Repository: "did:plc:test2", Keyword: "hello"}
+	options3 := models.FilterOptions{Repository: "did:plc:test3", Keyword: "world"}
+
+	filterKey1 := manager.CreateFilter(options1)
+	filterKey2 := manager.CreateFilter(options2)
+	filterKey3 := manager.CreateFilter(options3)
+
+	// Verify all filters exist
+	if len(manager.GetSubscriptions()) != 3 {
+		t.Errorf("Expected 3 filters initially, got %d", len(manager.GetSubscriptions()))
+	}
+
+	// Add a connection to filterKey2 only
+	manager.AddConnection(filterKey2, nil) // Using nil for simplicity in test
+
+	// Create a mock event
+	event := &models.ATEvent{
+		Did: "did:plc:test123",
+		Ops: []models.ATOperation{
+			{
+				Action: "create",
+				Path:   "app.bsky.feed.post/test",
+				Record: map[string]interface{}{
+					"text": "test message",
+				},
+			},
+		},
+	}
+
+	// Broadcast event - this should trigger cleanup of empty filters
+	manager.BroadcastEvent(event)
+
+	// Verify that filters without connections were cleaned up
+	remainingFilters := manager.GetSubscriptions()
+	if len(remainingFilters) != 1 {
+		t.Errorf("Expected 1 filter after cleanup, got %d", len(remainingFilters))
+	}
+
+	// Verify the remaining filter is the one with connections
+	if remainingFilters[0].FilterKey != filterKey2 {
+		t.Error("The filter with connections should remain after cleanup")
+	}
+
+	// Verify the empty filters were removed
+	_, exists1 := manager.GetSubscription(filterKey1)
+	_, exists3 := manager.GetSubscription(filterKey3)
+	if exists1 || exists3 {
+		t.Error("Empty filters should have been cleaned up")
+	}
+}
