@@ -13,6 +13,11 @@ var (
 		Name: "messages_sent_total",
 		Help: "Total number of messages sent to clients",
 	}, []string{"keyword"})
+	// Gauge to track current keyword activity - shows "right now" activity
+	KeywordActivity = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "keyword_messages_current",
+		Help: "Current count of messages containing each keyword (resets periodically)",
+	}, []string{"keyword"})
 	MessagesReceived = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "messages_received_total",
 		Help: "Total number of messages received from the firehose",
@@ -31,6 +36,7 @@ func init() {
 	prometheus.MustRegister(
 		WebsocketConnections,
 		MessagesSent,
+		KeywordActivity,
 		MessagesReceived,
 		FiltersCreated,
 		FiltersDeleted,

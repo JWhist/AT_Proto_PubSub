@@ -27,6 +27,12 @@ type Manager struct {
 	cleanupTicker  *time.Ticker
 	cleanupStop    chan bool
 	cleanupRunning bool
+	// Keyword activity tracking
+	keywordCounts   map[string]int
+	keywordCountsMu sync.RWMutex
+	activityTicker  *time.Ticker
+	activityStop    chan bool
+	activityRunning bool
 }
 
 // Subscription represents a filter with its associated WebSocket connections
@@ -45,8 +51,11 @@ func NewManager() *Manager {
 		subscriptions:  make(map[string]*Subscription),
 		maxConnections: 1000, // Default limit
 		cleanupStop:    make(chan bool, 1),
+		keywordCounts:  make(map[string]int),
+		activityStop:   make(chan bool, 1),
 	}
 	m.startPeriodicCleanup()
+	m.startActivityTracking()
 	return m
 }
 
@@ -56,8 +65,11 @@ func NewManagerWithConfig(maxConnections int) *Manager {
 		subscriptions:  make(map[string]*Subscription),
 		maxConnections: maxConnections,
 		cleanupStop:    make(chan bool, 1),
+		keywordCounts:  make(map[string]int),
+		activityStop:   make(chan bool, 1),
 	}
 	m.startPeriodicCleanup()
+	m.startActivityTracking()
 	return m
 }
 
@@ -239,10 +251,14 @@ func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 			m.broadcastToSubscription(sub, event, receivedAt)
 			matchCount++
 
-			// Only increment metrics for keywords that actually matched
+			// Track metrics for keywords that actually matched
 			if matchingKeywords := m.getMatchingKeywords(event, sub.Options.Keyword); len(matchingKeywords) > 0 {
 				for _, keyword := range matchingKeywords {
+					// Keep the counter for total tracking
 					metriks.MessagesSent.WithLabelValues(keyword).Inc()
+
+					// Increment current activity count for this keyword
+					m.incrementKeywordActivity(keyword)
 				}
 			}
 		}
@@ -609,6 +625,7 @@ func (m *Manager) StopPeriodicCleanup() {
 func (m *Manager) Shutdown() {
 	log.Printf("🔄 Shutting down subscription manager...")
 	m.StopPeriodicCleanup()
+	m.stopActivityTracking()
 
 	// Close all active connections
 	m.mu.Lock()
@@ -683,5 +700,71 @@ func (m *Manager) performPeriodicCleanup() {
 
 	if len(filtersToDelete) > 0 {
 		log.Printf("🧹 Periodic cleanup removed %d stale filter(s)", len(filtersToDelete))
+	}
+}
+
+// startActivityTracking starts the keyword activity tracking and reset routine
+func (m *Manager) startActivityTracking() {
+	const activityWindow = 30 * time.Second // Reset activity every 30 seconds
+	m.activityTicker = time.NewTicker(activityWindow)
+	m.activityRunning = true
+
+	go func() {
+		for {
+			select {
+			case <-m.activityTicker.C:
+				m.updateAndResetKeywordActivity()
+			case <-m.activityStop:
+				m.activityTicker.Stop()
+				m.activityRunning = false
+				return
+			}
+		}
+	}()
+
+	log.Printf("📊 Started keyword activity tracking (window: %v)", activityWindow)
+}
+
+// incrementKeywordActivity increments the current activity count for a keyword
+func (m *Manager) incrementKeywordActivity(keyword string) {
+	m.keywordCountsMu.Lock()
+	m.keywordCounts[keyword]++
+	m.keywordCountsMu.Unlock()
+}
+
+// updateAndResetKeywordActivity updates the metrics with current counts and resets them
+func (m *Manager) updateAndResetKeywordActivity() {
+	m.keywordCountsMu.Lock()
+	defer m.keywordCountsMu.Unlock()
+
+	// Update metrics with current counts
+	for keyword, count := range m.keywordCounts {
+		metriks.KeywordActivity.WithLabelValues(keyword).Set(float64(count))
+		if count > 0 {
+			log.Printf("📈 Keyword activity: '%s' = %d messages", keyword, count)
+		}
+	}
+
+	// Reset all counts to zero for next window
+	// Also set metrics to 0 for keywords that had no activity this window
+	for keyword := range m.keywordCounts {
+		metriks.KeywordActivity.WithLabelValues(keyword).Set(0)
+		delete(m.keywordCounts, keyword)
+	}
+}
+
+// stopActivityTracking stops the keyword activity tracking routine
+func (m *Manager) stopActivityTracking() {
+	m.keywordCountsMu.Lock()
+	defer m.keywordCountsMu.Unlock()
+
+	if m.activityRunning && m.activityStop != nil {
+		select {
+		case m.activityStop <- true:
+			log.Printf("📊 Stopped keyword activity tracking")
+		default:
+			// Channel might be closed or full, that's OK
+		}
+		m.activityRunning = false
 	}
 }
