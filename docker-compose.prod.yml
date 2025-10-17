@@ -4,8 +4,10 @@ services:
   at-proto-pubsub:
     build: .
     container_name: at-proto-pubsub-prod
+    networks:
+      - pds-net
     ports:
-      - "8085:8080" 
+      - "8085:8080"
       - "9090:9090"   # use 8085 on host to avoid conflict with other services
     environment:
       - CONFIG_FILE=/srv/atp-test/config/production.yaml
@@ -19,3 +21,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+networks:
+  pds-net:
+    external: true
