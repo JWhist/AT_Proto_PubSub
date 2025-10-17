@@ -569,7 +569,7 @@ func countLetters(s string, letterRegex *regexp.Regexp) int {
 
 // startPeriodicCleanup starts the periodic cleanup routine
 func (m *Manager) startPeriodicCleanup() {
-	const cleanupInterval = 5 * time.Minute // Run cleanup every 5 minutes
+	const cleanupInterval = 1 * time.Minute // Run cleanup every 1 minute
 	m.cleanupTicker = time.NewTicker(cleanupInterval)
 	m.cleanupRunning = true
 
