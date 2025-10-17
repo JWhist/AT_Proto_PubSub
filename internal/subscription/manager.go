@@ -238,10 +238,10 @@ func (m *Manager) BroadcastEvent(event *models.ATEvent) {
 		if m.matchesFilter(event, sub.Options) {
 			m.broadcastToSubscription(sub, event, receivedAt)
 			matchCount++
-			keywords := strings.Split(sub.Options.Keyword, ",")
-			for _, keyword := range keywords {
-				keyword = strings.TrimSpace(keyword)
-				if keyword != "" {
+			
+			// Only increment metrics for keywords that actually matched
+			if matchingKeywords := m.getMatchingKeywords(event, sub.Options.Keyword); len(matchingKeywords) > 0 {
+				for _, keyword := range matchingKeywords {
 					metriks.MessagesSent.WithLabelValues(keyword).Inc()
 				}
 			}
@@ -349,6 +349,33 @@ func (m *Manager) recordContainsKeywords(record interface{}, keywords string) bo
 // recordContainsKeyword checks if a record contains the specified keyword (kept for compatibility)
 func (m *Manager) recordContainsKeyword(record interface{}, keyword string) bool {
 	return m.recordContainsKeywords(record, keyword)
+}
+
+// getMatchingKeywords returns a list of keywords that actually match the event content
+func (m *Manager) getMatchingKeywords(event *models.ATEvent, keywords string) []string {
+	if keywords == "" {
+		return nil
+	}
+
+	var matchingKeywords []string
+	keywordList := strings.Split(keywords, ",")
+
+	for _, keyword := range keywordList {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" {
+			continue
+		}
+
+		// Check if this specific keyword matches any operation in the event
+		for _, op := range event.Ops {
+			if m.recordContainsKeywords(op.Record, keyword) {
+				matchingKeywords = append(matchingKeywords, keyword)
+				break // Found a match for this keyword, no need to check other operations
+			}
+		}
+	}
+
+	return matchingKeywords
 }
 
 // broadcastToSubscription sends an event to all connections in a subscription
